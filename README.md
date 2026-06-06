@@ -144,7 +144,9 @@ IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/mixed-lossless-images-nvid
 
 This profile disables FFmpeg autorotation, preserves the stored frame
 dimensions and source display rotation, applies no scale or crop filters, and
-copies audio/subtitle streams without re-encoding. For example, stored
+copies audio and phone metadata streams without re-encoding. It outputs MP4
+and uses ExifTool to restore writable GPS, camera, capture-date, and rotation
+metadata from the source. For example, stored
 `3840x2160` frames with a `-90` degree display rotation remain `3840x2160`
 frames with the rotation metadata preserved.
 

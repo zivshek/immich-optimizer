@@ -53,7 +53,7 @@ tasks:
     command: >
       sh ./transcode-video.sh
       "{{.src_folder}}/{{.name}}.{{.extension}}"
-      "{{.dst_folder}}/{{.name}}.mkv"
+      "{{.dst_folder}}/{{.name}}.mp4"
     extensions:
       - 3gp
       - 3gpp
