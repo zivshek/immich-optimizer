@@ -1,0 +1,4 @@
+services:
+  immich-optimizer:
+    devices:
+      - /dev/dri:/dev/dri

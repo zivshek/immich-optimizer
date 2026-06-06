@@ -78,9 +78,9 @@ RUN chmod +x /usr/local/bin/immich-optimizer
 LABEL \
     org.opencontainers.image.title="Immich Optimizer" \
     org.opencontainers.image.description="File optimization service for Immich" \
-    org.opencontainers.image.vendor="miguelangel-nubla" \
+    org.opencontainers.image.vendor="zivshek" \
     org.opencontainers.image.licenses="MIT" \
-    org.opencontainers.image.documentation="https://github.com/miguelangel-nubla/immich-optimizer"
+    org.opencontainers.image.documentation="https://github.com/zivshek/immich-optimizer"
 
 # Set environment variables
 ENV IUO_TASKS_FILE=/etc/immich-optimizer/config/tasks.yaml \

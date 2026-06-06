@@ -81,6 +81,10 @@ func (tp *TaskProcessor) Process(tasks []Task) (err error) {
 			continue
 		}
 
+		if strings.TrimSpace(task.Command) == "" {
+			return nil
+		}
+
 		convErr := tp.run(task.CommandTemplate)
 		if convErr != nil {
 			errors = append(errors, fmt.Errorf("\ntask %s failed: %w", task.Name, convErr))

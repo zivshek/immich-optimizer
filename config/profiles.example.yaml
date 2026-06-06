@@ -1,0 +1,14 @@
+profiles:
+  - name: alice
+    immich_url: http://immich-server:2283
+    immich_api_key: ${ALICE_IMMICH_API_KEY}
+    watch_dir: /inbox/alice
+    undone_dir: /undone/alice
+    tasks_file: /etc/immich-optimizer/bundled-configs/storage-saver-amd-gpu/tasks.yaml
+
+  - name: bob
+    immich_url: http://immich-server:2283
+    immich_api_key: ${BOB_IMMICH_API_KEY}
+    watch_dir: /inbox/bob
+    undone_dir: /undone/bob
+    tasks_file: /etc/immich-optimizer/bundled-configs/lossless/tasks.yaml

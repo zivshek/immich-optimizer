@@ -1,0 +1,10 @@
+.git
+.github
+.env
+inbox
+undone
+test-runner
+immich-optimizer.test
+compose*.yaml
+Dockerfile.custom
+Dockerfile.goreleaser

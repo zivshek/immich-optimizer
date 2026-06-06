@@ -1,4 +1,4 @@
-module github.com/miguelangel-nubla/immich-optimizer
+module github.com/zivshek/immich-optimizer
 
 go 1.23.4
 

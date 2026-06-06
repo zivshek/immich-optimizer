@@ -1,0 +1,37 @@
+tasks:
+  - name: videos-ffmpeg-nvidia
+    command: >
+      ffmpeg
+      -hwaccel cuda
+      -hwaccel_output_format cuda
+      -i "{{.src_folder}}/{{.name}}.{{.extension}}"
+      -c:v hevc_nvenc -preset p6 -cq 24
+      -c:a libopus -b:a 128k
+      "{{.dst_folder}}/{{.name}}-new.mp4"
+    extensions:
+      - 3gp
+      - avi
+      - flv
+      - m4v
+      - mkv
+      - mov
+      - mp4
+      - mpeg
+      - mpg
+      - mts
+      - ts
+      - webm
+      - wmv
+
+  - name: passthrough-images
+    command: ""
+    extensions:
+      - avif
+      - gif
+      - heic
+      - heif
+      - jpeg
+      - jpg
+      - jxl
+      - png
+      - webp

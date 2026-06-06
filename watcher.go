@@ -18,17 +18,19 @@ const (
 
 // FileWatcher monitors directory changes using inotify and processes files
 type FileWatcher struct {
-	fd           int            // inotify file descriptor
-	watchDir     string         // root directory to watch
-	immichClient *ImmichClient  // client for uploading to Immich
-	config       *Config        // processing configuration
-	logger       *log.Logger    // logger instance
-	watchMap     map[string]int // maps directory paths to watch descriptors
-	bufferSize   int            // buffer size for reading inotify events
-	appConfig      *AppConfig     // application configuration
-	processing     sync.Map       // tracks files actively being processed to avoid duplicate concurrent tasks
-	closedInodes   sync.Map       // tracks inodes of recently closed temporary files
-	pendingCreates sync.Map       // tracks inodes of recently created non-temp files waiting for IN_CLOSE_WRITE
+	fd             int            // inotify file descriptor
+	watchDir       string         // root directory to watch
+	immichClient   *ImmichClient  // client for uploading to Immich
+	config         *Config        // processing configuration
+	logger         *log.Logger    // logger instance
+	watchMap       map[string]int // maps directory paths to watch descriptors
+	bufferSize     int            // buffer size for reading inotify events
+	profile        *ProfileConfig // profile-specific directories and tasks
+	semaphore      chan struct{}  // shared application concurrency limit
+	stopOnce       sync.Once
+	processing     sync.Map // tracks files actively being processed to avoid duplicate concurrent tasks
+	closedInodes   sync.Map // tracks inodes of recently closed temporary files
+	pendingCreates sync.Map // tracks inodes of recently created non-temp files waiting for IN_CLOSE_WRITE
 }
 
 // pendingCreate stores an IN_CREATE event waiting for an IN_CLOSE_WRITE
@@ -38,7 +40,7 @@ type pendingCreate struct {
 }
 
 // NewFileWatcher creates a new file watcher instance
-func NewFileWatcher(watchDir string, immichClient *ImmichClient, config *Config, logger *log.Logger, bufferSize int) (*FileWatcher, error) {
+func NewFileWatcher(profile *ProfileConfig, immichClient *ImmichClient, logger *log.Logger, bufferSize int, semaphore chan struct{}) (*FileWatcher, error) {
 	fd, err := unix.InotifyInit()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create inotify instance: %w", err)
@@ -46,21 +48,22 @@ func NewFileWatcher(watchDir string, immichClient *ImmichClient, config *Config,
 
 	fw := &FileWatcher{
 		fd:           fd,
-		watchDir:     watchDir,
+		watchDir:     profile.WatchDir,
 		immichClient: immichClient,
-		config:       config,
+		config:       profile.Tasks,
 		logger:       logger,
 		watchMap:     make(map[string]int),
 		bufferSize:   bufferSize,
+		profile:      profile,
+		semaphore:    semaphore,
 	}
 
 	return fw, nil
 }
 
 // Start begins monitoring the directory for file changes
-func (fw *FileWatcher) Start(config *AppConfig) error {
-	fw.appConfig = config
-	fw.logger.Printf("Starting recursive file watcher on directory: %s", fw.watchDir)
+func (fw *FileWatcher) Start() error {
+	fw.logger.Printf("Profile %s: starting recursive file watcher on directory: %s", fw.profile.Name, fw.watchDir)
 
 	// Add watches recursively
 	err := fw.addWatchRecursive(fw.watchDir)
@@ -87,7 +90,7 @@ func (fw *FileWatcher) cleanupLoop() {
 
 	for range ticker.C {
 		now := time.Now()
-		
+
 		fw.closedInodes.Range(func(key, value any) bool {
 			if ts, ok := value.(time.Time); ok && now.Sub(ts) > time.Minute {
 				fw.closedInodes.Delete(key)
@@ -106,10 +109,12 @@ func (fw *FileWatcher) cleanupLoop() {
 
 // Stop closes the file watcher and cleans up resources
 func (fw *FileWatcher) Stop() {
-	for _, wd := range fw.watchMap {
-		unix.InotifyRmWatch(fw.fd, uint32(wd))
-	}
-	unix.Close(fw.fd)
+	fw.stopOnce.Do(func() {
+		for _, wd := range fw.watchMap {
+			unix.InotifyRmWatch(fw.fd, uint32(wd))
+		}
+		unix.Close(fw.fd)
+	})
 }
 
 // addWatchRecursive adds inotify watches to all directories recursively

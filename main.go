@@ -28,11 +28,13 @@ type AppConfig struct {
 	WatchDir              string
 	UndoneDir             string
 	ConfigFile            string
+	ProfilesFile          string
 	MaxConcurrentRequests int
 	HTTPTimeoutSeconds    int
 	InotifyBufferSize     int
 	Semaphore             chan struct{}
 	Tasks                 *Config
+	Profiles              []ProfileConfig
 }
 
 func NewAppConfig() *AppConfig {
@@ -45,10 +47,8 @@ func NewAppConfig() *AppConfig {
 	}
 }
 
-var appConfig *AppConfig
-
-func init() {
-	appConfig = NewAppConfig()
+func loadAppConfig() (*AppConfig, error) {
+	appConfig := NewAppConfig()
 
 	viper.SetEnvPrefix("iuo")
 	viper.AutomaticEnv()
@@ -57,12 +57,14 @@ func init() {
 	viper.BindEnv("watch_dir")
 	viper.BindEnv("undone_dir")
 	viper.BindEnv("tasks_file")
+	viper.BindEnv("profiles_file")
 
 	viper.SetDefault("immich_url", "")
 	viper.SetDefault("immich_api_key", "")
 	viper.SetDefault("watch_dir", "/watch")
 	viper.SetDefault("undone_dir", "/undone")
 	viper.SetDefault("tasks_file", "tasks.yaml")
+	viper.SetDefault("profiles_file", "")
 
 	flag.BoolVar(&appConfig.ShowVersion, "version", false, "Show the current version")
 	flag.StringVar(&appConfig.ImmichURL, "immich_url", viper.GetString("immich_url"), "Immich server URL. Example: http://immich-server:2283")
@@ -70,25 +72,78 @@ func init() {
 	flag.StringVar(&appConfig.WatchDir, "watch_dir", viper.GetString("watch_dir"), "Directory to watch for new files")
 	flag.StringVar(&appConfig.UndoneDir, "undone_dir", viper.GetString("undone_dir"), "Directory to copy files that failed processing or upload")
 	flag.StringVar(&appConfig.ConfigFile, "tasks_file", viper.GetString("tasks_file"), "Path to the configuration file")
+	flag.StringVar(&appConfig.ProfilesFile, "profiles_file", viper.GetString("profiles_file"), "Path to a multi-user profiles configuration file")
 	flag.Parse()
 
 	if appConfig.ShowVersion {
-		fmt.Println(printVersion())
-		os.Exit(0)
+		return appConfig, nil
 	}
-
 	if err := appConfig.validate(); err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
+	return appConfig, nil
 }
 
 func (ac *AppConfig) validate() error {
-	if ac.ImmichURL == "" {
-		return fmt.Errorf("the -immich_url flag is required")
+	if ac.ProfilesFile != "" {
+		profiles, err := NewProfilesConfig(ac.ProfilesFile)
+		if err != nil {
+			return err
+		}
+		for i := range profiles.Profiles {
+			if err := ac.prepareProfile(&profiles.Profiles[i]); err != nil {
+				return fmt.Errorf("invalid profile %q: %w", profiles.Profiles[i].Name, err)
+			}
+		}
+		ac.Profiles = profiles.Profiles
+		return nil
 	}
 
-	// Validate URL format
-	parsedURL, urlErr := url.Parse(ac.ImmichURL)
+	profile := ProfileConfig{
+		Name:         "default",
+		ImmichURL:    ac.ImmichURL,
+		ImmichAPIKey: ac.ImmichAPIKey,
+		WatchDir:     ac.WatchDir,
+		UndoneDir:    ac.UndoneDir,
+		ConfigFile:   ac.ConfigFile,
+	}
+	if err := ac.prepareProfile(&profile); err != nil {
+		return err
+	}
+	ac.Tasks = profile.Tasks
+	ac.Profiles = []ProfileConfig{profile}
+	return nil
+}
+
+func (ac *AppConfig) prepareProfile(profile *ProfileConfig) error {
+	if err := profile.validate(); err != nil {
+		return err
+	}
+
+	if mkdirErr := os.MkdirAll(profile.WatchDir, 0750); mkdirErr != nil {
+		return fmt.Errorf("error creating watch directory: %v", mkdirErr)
+	}
+	if mkdirErr := os.MkdirAll(profile.UndoneDir, 0750); mkdirErr != nil {
+		return fmt.Errorf("error creating undone directory: %v", mkdirErr)
+	}
+
+	var err error
+	profile.Tasks, err = NewConfig(&profile.ConfigFile)
+	if err != nil {
+		return fmt.Errorf("error loading tasks file: %v", err)
+	}
+	return nil
+}
+
+func (profile *ProfileConfig) validate() error {
+	if strings.TrimSpace(profile.Name) == "" {
+		return fmt.Errorf("name is required")
+	}
+	if profile.ImmichURL == "" {
+		return fmt.Errorf("immich_url is required")
+	}
+
+	parsedURL, urlErr := url.Parse(profile.ImmichURL)
 	if urlErr != nil {
 		return fmt.Errorf("invalid immich_url format: %w", urlErr)
 	}
@@ -98,67 +153,60 @@ func (ac *AppConfig) validate() error {
 	if parsedURL.Host == "" {
 		return fmt.Errorf("immich_url must include a valid host")
 	}
-
-	if ac.ImmichAPIKey == "" {
-		return fmt.Errorf("the -immich_api_key flag is required")
-	}
-
-	// Basic API key validation (should be a non-empty string with reasonable length)
-	if len(strings.TrimSpace(ac.ImmichAPIKey)) < 10 {
+	if len(strings.TrimSpace(profile.ImmichAPIKey)) < 10 {
 		return fmt.Errorf("immich_api_key appears to be too short (minimum 10 characters)")
 	}
-
-	if ac.ConfigFile == "" {
-		return fmt.Errorf("the -tasks_file flag is required")
+	if profile.WatchDir == "" {
+		return fmt.Errorf("watch_dir is required")
 	}
-
-	// Create watch directory if it doesn't exist
-	if mkdirErr := os.MkdirAll(ac.WatchDir, 0750); mkdirErr != nil {
-		return fmt.Errorf("error creating watch directory: %v", mkdirErr)
+	if profile.UndoneDir == "" {
+		return fmt.Errorf("undone_dir is required")
 	}
-
-	// Create undone directory if it doesn't exist
-	if mkdirErr := os.MkdirAll(ac.UndoneDir, 0750); mkdirErr != nil {
-		return fmt.Errorf("error creating undone directory: %v", mkdirErr)
+	if profile.ConfigFile == "" {
+		return fmt.Errorf("tasks_file is required")
 	}
-
-	var err error
-	ac.Tasks, err = NewConfig(&ac.ConfigFile)
-	if err != nil {
-		return fmt.Errorf("error loading config file: %v", err)
-	}
-
 	return nil
 }
 
 func main() {
+	config, err := loadAppConfig()
+	if err != nil {
+		log.Fatal(err)
+	}
+	if config.ShowVersion {
+		fmt.Println(printVersion())
+		return
+	}
+
 	// Setup graceful shutdown
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-
-	config := appConfig
 
 	baseLogger := log.New(os.Stdout, "", log.Ldate|log.Ltime)
 	customLogger := newCustomLogger(baseLogger, "")
 	customLogger.Printf("Starting %s", printVersion())
 
-	// Create Immich client
-	immichClient := NewImmichClient(config.ImmichURL, config.ImmichAPIKey, config.HTTPTimeoutSeconds, customLogger)
-
-	// Create file watcher
-	watcher, err := NewFileWatcher(config.WatchDir, immichClient, config.Tasks, baseLogger, config.InotifyBufferSize)
-	if err != nil {
-		customLogger.Printf("Error creating file watcher: %v", err)
-		os.Exit(1)
+	var watchers []*FileWatcher
+	for i := range config.Profiles {
+		profile := &config.Profiles[i]
+		profileBaseLogger := log.New(os.Stdout, fmt.Sprintf("profile %s: ", profile.Name), log.Ldate|log.Ltime)
+		profileLogger := newCustomLogger(profileBaseLogger, "")
+		immichClient := NewImmichClient(profile.ImmichURL, profile.ImmichAPIKey, config.HTTPTimeoutSeconds, profileLogger)
+		watcher, err := NewFileWatcher(profile, immichClient, profileBaseLogger, config.InotifyBufferSize, config.Semaphore)
+		if err != nil {
+			customLogger.Printf("Error creating watcher for profile %s: %v", profile.Name, err)
+			stopWatchers(watchers)
+			os.Exit(1)
+		}
+		if err := watcher.Start(); err != nil {
+			customLogger.Printf("Error starting watcher for profile %s: %v", profile.Name, err)
+			watcher.Stop()
+			stopWatchers(watchers)
+			os.Exit(1)
+		}
+		watchers = append(watchers, watcher)
 	}
-	defer watcher.Stop()
-
-	// Start watching
-	err = watcher.Start(config)
-	if err != nil {
-		customLogger.Printf("Error starting file watcher: %v", err)
-		os.Exit(1)
-	}
+	defer stopWatchers(watchers)
 
 	// Block until we receive our signal
 	<-sigChan
@@ -172,7 +220,7 @@ func main() {
 	// Stop the watcher gracefully
 	done := make(chan struct{})
 	go func() {
-		watcher.Stop()
+		stopWatchers(watchers)
 		close(done)
 	}()
 
@@ -181,6 +229,12 @@ func main() {
 		customLogger.Printf("Shutdown completed successfully")
 	case <-shutdownCtx.Done():
 		customLogger.Printf("Shutdown timeout exceeded, forcing exit")
+	}
+}
+
+func stopWatchers(watchers []*FileWatcher) {
+	for _, watcher := range watchers {
+		watcher.Stop()
 	}
 }
 

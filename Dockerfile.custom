@@ -26,7 +26,7 @@ RUN set -eux; \
     tar xzf "/tmp/${CAESIUM_ARCHIVE}.tar.gz" -C /tmp; \
     install -m 755 "/tmp/${CAESIUM_ARCHIVE}/caesiumclt" /usr/local/bin/caesiumclt
 
-ARG IMMICH_OPTIMIZER_REPO=miguelangel-nubla/immich-optimizer
+ARG IMMICH_OPTIMIZER_REPO=zivshek/immich-optimizer
 RUN set -eux; \
     LATEST_TAG=$(curl -s https://api.github.com/repos/$IMMICH_OPTIMIZER_REPO/releases/latest | jq -r '.tag_name'); \
     case "$TARGETPLATFORM" in \
@@ -92,9 +92,9 @@ COPY --chown=appuser:appuser config /etc/immich-optimizer/bundled-configs
 LABEL \
     org.opencontainers.image.title="Immich Optimizer" \
     org.opencontainers.image.description="File optimization service for Immich" \
-    org.opencontainers.image.vendor="miguelangel-nubla" \
+    org.opencontainers.image.vendor="zivshek" \
     org.opencontainers.image.licenses="MIT" \
-    org.opencontainers.image.documentation="https://github.com/miguelangel-nubla/immich-optimizer"
+    org.opencontainers.image.documentation="https://github.com/zivshek/immich-optimizer"
 
 # Set environment variables
 ENV IUO_TASKS_FILE=/etc/immich-optimizer/config/tasks.yaml \

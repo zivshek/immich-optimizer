@@ -1,9 +1,9 @@
 # Immich Optimizer
 
-[![Release](https://img.shields.io/github/v/release/miguelangel-nubla/immich-optimizer)](https://github.com/miguelangel-nubla/immich-optimizer/releases)
-[![Docker](https://img.shields.io/badge/docker-ghcr.io-blue)](https://ghcr.io/miguelangel-nubla/immich-optimizer)
-[![Go Version](https://img.shields.io/github/go-mod/go-version/miguelangel-nubla/immich-optimizer)](https://golang.org/)
-[![License](https://img.shields.io/github/license/miguelangel-nubla/immich-optimizer)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/zivshek/immich-optimizer)](https://github.com/zivshek/immich-optimizer/releases)
+[![Docker](https://img.shields.io/badge/docker-ghcr.io-blue)](https://ghcr.io/zivshek/immich-optimizer)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/zivshek/immich-optimizer)](https://golang.org/)
+[![License](https://img.shields.io/github/license/zivshek/immich-optimizer)](LICENSE)
 
 A file optimization service that automatically processes and uploads media files to [Immich](https://immich.app/). This tool watches for new files in a directory, applies configurable optimization tasks, and uploads the optimized results to your Immich instance.
 
@@ -30,7 +30,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) to understand the whole picture.
 
 ```bash
 # Pull the latest image
-docker pull ghcr.io/miguelangel-nubla/immich-optimizer:latest
+docker pull ghcr.io/zivshek/immich-optimizer:latest
 
 # Run with lossless optimization
 docker run -d \
@@ -39,15 +39,24 @@ docker run -d \
   -v /path/to/undone:/undone \
   -e IUO_IMMICH_URL=http://your-immich-instance:2283 \
   -e IUO_IMMICH_API_KEY=your-api-key \
-  ghcr.io/miguelangel-nubla/immich-optimizer:latest
+  ghcr.io/zivshek/immich-optimizer:latest
 ```
+
+Images are published automatically by GitHub Actions:
+
+- Every push to `main` publishes `latest` and a `sha-...` tag.
+- Tags such as `v1.2.3` publish `1.2.3`, `1.2`, `1`, and `sha-...`.
+- Pull requests run tests but do not publish images.
+
+After the first workflow publish, set the package visibility to **Public** in
+the package settings if anonymous `docker pull` access is desired.
 
 ### Docker Compose
 
 ```yaml
 services:
   immich-optimizer:
-    image: ghcr.io/miguelangel-nubla/immich-optimizer:latest
+    image: ghcr.io/zivshek/immich-optimizer:latest
     container_name: immich-optimizer
     environment:
       - IUO_IMMICH_URL=http://immich-server:2283
@@ -62,6 +71,50 @@ services:
     restart: unless-stopped
 ```
 
+### Multi-user profiles
+
+Set `IUO_PROFILES_FILE` to run one isolated watcher and Immich API client per
+landing folder. Each profile has its own API key, watch directory, failure
+directory, and optimization task file. API keys can reference environment
+variables.
+
+```yaml
+profiles:
+  - name: alice
+    immich_url: http://immich-server:2283
+    immich_api_key: ${ALICE_IMMICH_API_KEY}
+    watch_dir: /inbox/alice
+    undone_dir: /undone/alice
+    tasks_file: /etc/immich-optimizer/bundled-configs/storage-saver-amd-gpu/tasks.yaml
+```
+
+Start the included example:
+
+```bash
+docker compose -f compose.multi-user.yaml up -d
+```
+
+Profile paths must not overlap. Relative paths are resolved from the directory
+containing the profiles file. The original single-user environment variables
+and flags remain supported when `IUO_PROFILES_FILE` is not set.
+
+### GPU passthrough
+
+Processing commands automatically have access to devices exposed to the
+container. Use the included Compose override matching the host GPU:
+
+```bash
+# AMD or Intel VAAPI
+docker compose -f compose.multi-user.yaml -f compose.gpu-vaapi.yaml up -d
+
+# NVIDIA Container Toolkit
+docker compose -f compose.multi-user.yaml -f compose.gpu-nvidia.yaml up -d
+```
+
+The bundled `storage-saver-amd-gpu` and `storage-saver-nvidia-gpu` task
+profiles provide starting points. Confirm the container user can access
+`/dev/dri` on VAAPI hosts; some systems require adding the host render group.
+
 ### 🚀 Custom Image (GPU Acceleration, FFMPEG, etc.)
 
 Hardware-accelerated video encoding (NVidia NVENC, Intel VAAPI, etc.) is **not included in the base image** because providing a one-size-fits-all solution is complex and leads to massive image fragmentation. Furthermore, there are some limitations with the upstream HandBrake base image not supporting `arm64` (see [jlesage/docker-handbrake#48](https://github.com/jlesage/docker-handbrake/issues/48)).
@@ -73,7 +126,7 @@ This is also a great alternative for users who want to **rely solely on `ffmpeg`
 The following script downloads the latest **Immich Optimizer** binary from the GitHub releases page and installs it:
 
 ```Dockerfile
-ARG IMMICH_OPTIMIZER_REPO=miguelangel-nubla/immich-optimizer
+ARG IMMICH_OPTIMIZER_REPO=zivshek/immich-optimizer
 RUN set -eux; \
     LATEST_TAG=$(curl -s https://api.github.com/repos/$IMMICH_OPTIMIZER_REPO/releases/latest | jq -r '.tag_name'); \
     case "$TARGETPLATFORM" in \
@@ -99,6 +152,7 @@ RUN set -eux; \
 | `IUO_WATCH_DIR` | Directory to watch for files | `/watch` |
 | `IUO_UNDONE_DIR` | Directory for files that failed processing/upload | `/undone` |
 | `IUO_TASKS_FILE` | Path to tasks configuration | `tasks.yaml` |
+| `IUO_PROFILES_FILE` | Path to multi-user profiles configuration; enables profile mode | - |
 
 ### Command Line Options
 
@@ -111,6 +165,7 @@ Options:
   -watch_dir string      Directory to watch (default "/watch")
   -undone_dir string     Directory for failed files (default "/undone")
   -tasks_file string     Tasks configuration file (default "tasks.yaml")
+  -profiles_file string  Multi-user profiles configuration file
   -version               Show version information
 ```
 

@@ -77,7 +77,7 @@ If using Docker, remember to mount a folder containing the `tasks.yaml` configur
 ```yaml
 services:
   immich-optimizer:
-    image: ghcr.io/miguelangel-nubla/immich-optimizer:latest
+    image: ghcr.io/zivshek/immich-optimizer:latest
     ports:
       - "2283:2283"
     volumes:
@@ -93,4 +93,3 @@ services:
 - Ensure file extensions and commands are correctly specified.
 - Tasks execute in the order they appear in the configuration file.
 - Long-running tasks (e.g., video transcoding) may exceed HTTP timeouts. IUO attempts to mitigate this by sending periodic HTTP redirects, but tasks will continue in the background even if the client disconnects. The processed file will still be uploaded to Immich regardless of client disconnection.
-

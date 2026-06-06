@@ -1,0 +1,13 @@
+services:
+  immich-optimizer:
+    image: ghcr.io/zivshek/immich-optimizer:latest
+    container_name: immich-optimizer
+    environment:
+      IUO_PROFILES_FILE: /etc/immich-optimizer/profiles.yaml
+      ALICE_IMMICH_API_KEY: ${ALICE_IMMICH_API_KEY}
+      BOB_IMMICH_API_KEY: ${BOB_IMMICH_API_KEY}
+    volumes:
+      - ./config/profiles.example.yaml:/etc/immich-optimizer/profiles.yaml:ro
+      - ./inbox:/inbox
+      - ./undone:/undone
+    restart: unless-stopped

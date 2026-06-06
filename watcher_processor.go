@@ -28,9 +28,9 @@ func (fw *FileWatcher) processFile(originalFilePath string) {
 	}
 	defer fw.processing.Delete(originalFilePath)
 
-	if fw.appConfig != nil && fw.appConfig.Semaphore != nil {
-		fw.appConfig.Semaphore <- struct{}{}
-		defer func() { <-fw.appConfig.Semaphore }()
+	if fw.semaphore != nil {
+		fw.semaphore <- struct{}{}
+		defer func() { <-fw.semaphore }()
 	}
 
 	if !fw.validateFile(originalFilePath) {
@@ -44,7 +44,9 @@ func (fw *FileWatcher) processFile(originalFilePath string) {
 	fw.logger.Printf("Processing file: %s", originalFilePath)
 
 	if !fw.shouldOptimizeFile(originalFilePath) {
-		fw.uploadToImmich(originalFilePath)
+		if fw.uploadToImmich(originalFilePath) {
+			fw.cleanupOriginalFile(originalFilePath)
+		}
 		return
 	}
 
@@ -60,8 +62,9 @@ func (fw *FileWatcher) processFile(originalFilePath string) {
 		return
 	}
 
-	fw.handleProcessingSuccess(originalFilePath, tp)
-	fw.cleanupOriginalFile(originalFilePath)
+	if fw.handleProcessingSuccess(originalFilePath, tp) {
+		fw.cleanupOriginalFile(originalFilePath)
+	}
 }
 
 // validateFile checks if the file exists and is not a directory
@@ -94,8 +97,8 @@ func (fw *FileWatcher) createTaskProcessor(filePath string) (*TaskProcessor, err
 	jobLogger := newCustomLogger(fw.logger, fmt.Sprintf("file %s: ", filePath))
 	tp.SetLogger(jobLogger)
 
-	if fw.appConfig != nil {
-		tp.SetConfigDir(filepath.Dir(fw.appConfig.ConfigFile))
+	if fw.profile != nil {
+		tp.SetConfigDir(filepath.Dir(fw.profile.ConfigFile))
 	}
 
 	return tp, nil
@@ -104,18 +107,17 @@ func (fw *FileWatcher) createTaskProcessor(filePath string) (*TaskProcessor, err
 // handleProcessingError handles errors that occur during file processing
 func (fw *FileWatcher) handleProcessingError(filePath string, err error) {
 	fw.logger.Printf("Error processing file %s: %v", filePath, err)
-	if copyErr := copyFileToUndone(filePath, fw.watchDir, fw.appConfig.UndoneDir); copyErr != nil {
+	if copyErr := copyFileToUndone(filePath, fw.watchDir, fw.profile.UndoneDir); copyErr != nil {
 		fw.logger.Printf("Error copying file %s to undone directory: %v", filePath, copyErr)
 	}
 }
 
 // handleProcessingSuccess handles successful file processing and determines upload strategy
-func (fw *FileWatcher) handleProcessingSuccess(originalFilePath string, tp *TaskProcessor) {
+func (fw *FileWatcher) handleProcessingSuccess(originalFilePath string, tp *TaskProcessor) bool {
 	if fw.shouldUploadProcessedFile(tp) {
-		fw.uploadProcessedFile(originalFilePath, tp)
-	} else {
-		fw.uploadOriginalFile(originalFilePath)
+		return fw.uploadProcessedFile(originalFilePath, tp)
 	}
+	return fw.uploadOriginalFile(originalFilePath)
 }
 
 // shouldUploadProcessedFile determines if the processed file should be uploaded instead of original
@@ -124,28 +126,27 @@ func (fw *FileWatcher) shouldUploadProcessedFile(tp *TaskProcessor) bool {
 }
 
 // uploadProcessedFile uploads the optimized version of the file
-func (fw *FileWatcher) uploadProcessedFile(originalFilePath string, tp *TaskProcessor) {
+func (fw *FileWatcher) uploadProcessedFile(originalFilePath string, tp *TaskProcessor) bool {
 	processedFilePath, err := tp.GetProcessedFilePath()
 	if err != nil {
 		fw.logger.Printf("Error getting processed file path: %v", err)
-		fw.uploadToImmich(originalFilePath)
-		return
+		return fw.uploadToImmich(originalFilePath)
 	}
 
-	fw.logger.Printf("Optimized file uploaded: %s -> %s",
+	fw.logger.Printf("Using optimized file: %s -> %s",
 		humanReadableSize(tp.OriginalSize),
 		humanReadableSize(tp.ProcessedSize))
 	processedFilename := tp.ProcessedFilename
 	if processedFilename == "" {
 		processedFilename = filepath.Base(originalFilePath)
 	}
-	fw.uploadToImmichWithFilename(processedFilePath, processedFilename)
+	return fw.uploadToImmichWithFilename(processedFilePath, processedFilename)
 }
 
 // uploadOriginalFile uploads the original file without optimization
-func (fw *FileWatcher) uploadOriginalFile(filePath string) {
+func (fw *FileWatcher) uploadOriginalFile(filePath string) bool {
 	fw.logger.Printf("Original file uploaded (no optimization achieved)")
-	fw.uploadToImmich(filePath)
+	return fw.uploadToImmich(filePath)
 }
 
 // cleanupOriginalFile removes the original file after successful processing
