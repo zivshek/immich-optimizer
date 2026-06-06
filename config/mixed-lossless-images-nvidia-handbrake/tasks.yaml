@@ -1,0 +1,101 @@
+tasks:
+  # Reversible JPEG-to-JXL conversion. The original JPEG bitstream can be
+  # reconstructed from the JXL file.
+  - name: jpeg-xl-lossless-jpeg
+    command: >
+      cjxl --lossless_jpeg=1
+      "{{.src_folder}}/{{.name}}.{{.extension}}"
+      "{{.dst_folder}}/{{.name}}.jxl"
+    extensions:
+      - jpeg
+      - jpg
+
+  # Pixel-lossless JXL conversion for non-JPEG formats supported by cjxl.
+  - name: jpeg-xl-lossless-pixels
+    command: >
+      cjxl -d 0
+      "{{.src_folder}}/{{.name}}.{{.extension}}"
+      "{{.dst_folder}}/{{.name}}.jxl"
+    extensions:
+      - exr
+      - pam
+      - pfm
+      - pgm
+      - pgx
+      - pnm
+      - png
+      - ppm
+
+  # Losslessly optimize formats that should remain in their original format.
+  - name: caesium-lossless
+    command: >
+      caesiumclt --lossless --keep-dates --exif
+      -o "{{.dst_folder}}"
+      "{{.src_folder}}/{{.name}}.{{.extension}}"
+    extensions:
+      - webp
+
+  # Upload image formats that cannot be usefully losslessly recompressed.
+  - name: passthrough-images
+    command: ""
+    extensions:
+      - avif
+      - bmp
+      - dng
+      - gif
+      - heic
+      - heif
+      - insp
+      - jxl
+      - psd
+      - raw
+      - rw2
+      - svg
+      - tif
+      - tiff
+
+  # HandBrake uses NVIDIA NVENC HEVC 10-bit. FFmpeg remuxes metadata from the
+  # source after HandBrake finishes.
+  - name: handbrake-nvidia-hevc
+    command: >
+      HandBrakeCLI
+      -i "{{.src_folder}}/{{.name}}.{{.extension}}"
+      -o "{{.dst_folder}}/{{.name}}.temp.mkv"
+      --format av_mkv
+      --encoder nvenc_h265_10bit
+      --quality 24
+      --encoder-preset slow
+      --vfr
+      --audio-lang-list any
+      --all-audio
+      --aencoder copy
+      --audio-fallback opus
+      --all-subtitles
+      --markers
+      &&
+      ffmpeg
+      -i "{{.dst_folder}}/{{.name}}.temp.mkv"
+      -i "{{.src_folder}}/{{.name}}.{{.extension}}"
+      -map 0 -map_metadata 1 -c copy -y
+      "{{.dst_folder}}/{{.name}}.mkv"
+      &&
+      rm "{{.dst_folder}}/{{.name}}.temp.mkv"
+    extensions:
+      - 3gp
+      - 3gpp
+      - avi
+      - flv
+      - insv
+      - m2t
+      - m2ts
+      - m4v
+      - mkv
+      - mov
+      - mp4
+      - mpe
+      - mpeg
+      - mpg
+      - mts
+      - ts
+      - webm
+      - wmv

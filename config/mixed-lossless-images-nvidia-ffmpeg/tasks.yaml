@@ -1,0 +1,75 @@
+tasks:
+  - name: jpeg-xl-lossless-jpeg
+    command: >
+      cjxl --lossless_jpeg=1
+      "{{.src_folder}}/{{.name}}.{{.extension}}"
+      "{{.dst_folder}}/{{.name}}.jxl"
+    extensions:
+      - jpeg
+      - jpg
+
+  - name: jpeg-xl-lossless-pixels
+    command: >
+      cjxl -d 0
+      "{{.src_folder}}/{{.name}}.{{.extension}}"
+      "{{.dst_folder}}/{{.name}}.jxl"
+    extensions:
+      - exr
+      - pam
+      - pfm
+      - pgm
+      - pgx
+      - pnm
+      - png
+      - ppm
+
+  - name: caesium-lossless
+    command: >
+      caesiumclt --lossless --keep-dates --exif
+      -o "{{.dst_folder}}"
+      "{{.src_folder}}/{{.name}}.{{.extension}}"
+    extensions:
+      - webp
+
+  - name: passthrough-images
+    command: ""
+    extensions:
+      - avif
+      - bmp
+      - dng
+      - gif
+      - heic
+      - heif
+      - insp
+      - jxl
+      - psd
+      - raw
+      - rw2
+      - svg
+      - tif
+      - tiff
+
+  - name: ffmpeg-nvidia-hevc-preserve-orientation
+    command: >
+      sh ./transcode-video.sh
+      "{{.src_folder}}/{{.name}}.{{.extension}}"
+      "{{.dst_folder}}/{{.name}}.mkv"
+    extensions:
+      - 3gp
+      - 3gpp
+      - avi
+      - flv
+      - insv
+      - m2t
+      - m2ts
+      - m4v
+      - mkv
+      - mov
+      - mp4
+      - mpe
+      - mpeg
+      - mpg
+      - mts
+      - ts
+      - webm
+      - wmv

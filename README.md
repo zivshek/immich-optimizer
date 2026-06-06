@@ -121,6 +121,31 @@ The bundled `storage-saver-amd-gpu` and `storage-saver-nvidia-gpu` task
 profiles provide starting points. Confirm the container user can access
 `/dev/dri` on VAAPI hosts; some systems require adding the host render group.
 
+For lossless image optimization combined with HandBrake NVIDIA video
+transcoding, use:
+
+```yaml
+IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/mixed-lossless-images-nvidia-handbrake/tasks.yaml
+```
+
+`cjxl --lossless_jpeg=1` is specifically a reversible JPEG-to-JXL conversion.
+It preserves the original JPEG bitstream inside the JXL file. For non-JPEG
+images, the mixed profile uses `cjxl -d 0` for pixel-lossless conversion or
+Caesium lossless optimization while preserving the original format.
+
+For the same lossless image handling with phone-video rotation preserved as
+display metadata and high-quality FFmpeg NVENC encoding, use:
+
+```yaml
+IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/mixed-lossless-images-nvidia-ffmpeg/tasks.yaml
+```
+
+This profile disables FFmpeg autorotation, preserves the stored frame
+dimensions and source display rotation, applies no scale or crop filters, and
+copies audio/subtitle streams without re-encoding. For example, stored
+`3840x2160` frames with a `-90` degree display rotation remain `3840x2160`
+frames with the rotation metadata preserved.
+
 ### 🚀 Custom Image (GPU Acceleration, FFMPEG, etc.)
 
 Hardware-accelerated video encoding (NVidia NVENC, Intel VAAPI, etc.) is **not included in the base image** because providing a one-size-fits-all solution is complex and leads to massive image fragmentation. Furthermore, there are some limitations with the upstream HandBrake base image not supporting `arm64` (see [jlesage/docker-handbrake#48](https://github.com/jlesage/docker-handbrake/issues/48)).
