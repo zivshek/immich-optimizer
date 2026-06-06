@@ -22,10 +22,11 @@ ARG CAESIUM_GITHUB_REPO=Lymphatus/caesium-clt
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     ca-certificates curl jq && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* && \
+    mkdir -p /out
 
 RUN set -eux; \
-    CAESIUM_LATEST_RELEASE=$(curl -s "https://api.github.com/repos/${CAESIUM_GITHUB_REPO}/releases/latest" | jq -r '.tag_name'); \
+    CAESIUM_LATEST_RELEASE=$(curl -fsSL "https://api.github.com/repos/${CAESIUM_GITHUB_REPO}/releases/latest" | jq -er '.tag_name'); \
     case "$TARGETARCH" in \
       amd64) CAESIUM_ARCH=x86_64-unknown-linux-musl ;; \
       arm64) CAESIUM_ARCH=aarch64-unknown-linux-musl ;; \
@@ -35,7 +36,9 @@ RUN set -eux; \
     curl -fsSL -o "/tmp/${CAESIUM_ARCHIVE}.tar.gz" \
       "https://github.com/${CAESIUM_GITHUB_REPO}/releases/latest/download/${CAESIUM_ARCHIVE}.tar.gz"; \
     tar xzf "/tmp/${CAESIUM_ARCHIVE}.tar.gz" -C /tmp; \
-    install -m 755 "/tmp/${CAESIUM_ARCHIVE}/caesiumclt" /out/caesiumclt
+    test -x "/tmp/${CAESIUM_ARCHIVE}/caesiumclt"; \
+    install -m 755 "/tmp/${CAESIUM_ARCHIVE}/caesiumclt" /out/caesiumclt; \
+    /out/caesiumclt --version
 
 FROM debian:trixie-slim
 
