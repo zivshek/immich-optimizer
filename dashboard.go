@@ -152,7 +152,7 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:9px;bord
 <div class="card"><div class="label">Total Reduction</div><div class="value good" id="reduction">0%</div></div>
 </section>
 <section>
-<div class="panel"><h2>Recent Uploads</h2><table><thead><tr><th>Time</th><th>Profile</th><th>File</th><th>Original Size</th><th>Compressed Size</th><th>Saved</th><th>Reduction</th></tr></thead><tbody id="recent"></tbody></table></div>
+<div class="panel"><h2>Recent Uploads</h2><table><thead><tr><th>Time</th><th>Profile</th><th>File</th><th>Resolution</th><th>Original Size</th><th>Compressed Size</th><th>Saved</th><th>Reduction</th></tr></thead><tbody id="recent"></tbody></table></div>
 </section>
 <section>
 <div class="panel"><h2>Current Log</h2><div id="logs"></div></div>
@@ -164,7 +164,7 @@ const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'
 async function refresh(){
  const [s,r,l]=await Promise.all([fetch('/api/stats').then(x=>x.json()),fetch('/api/recent').then(x=>x.json()),fetch('/api/logs').then(x=>x.json())]);
  count.textContent=s.processed_count;original.textContent=size(s.original_bytes);compressed.textContent=size(s.uploaded_bytes);saved.textContent=size(s.saved_bytes);reduction.textContent=s.reduction_percent.toFixed(1)+'%';
- recent.innerHTML=r.map(x=>'<tr><td>'+new Date(x.processed_at).toLocaleString()+'</td><td>'+esc(x.profile)+'</td><td title="'+esc(x.filename)+'">'+esc(x.filename)+'</td><td>'+size(x.original_bytes)+'</td><td>'+size(x.uploaded_bytes)+'</td><td>'+size(x.saved_bytes)+'</td><td>'+x.reduction_percent.toFixed(1)+'%</td></tr>').join('');
+ recent.innerHTML=r.map(x=>'<tr><td>'+new Date(x.processed_at).toLocaleString()+'</td><td>'+esc(x.profile)+'</td><td title="'+esc(x.filename)+'">'+esc(x.filename)+'</td><td>'+(x.resolution?esc(x.resolution):'—')+'</td><td>'+size(x.original_bytes)+'</td><td>'+size(x.uploaded_bytes)+'</td><td>'+size(x.saved_bytes)+'</td><td>'+x.reduction_percent.toFixed(1)+'%</td></tr>').join('');
  logs.textContent=l.join('\n');logs.scrollTop=logs.scrollHeight;
 }
 refresh();setInterval(refresh,2000);

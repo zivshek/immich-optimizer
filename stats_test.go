@@ -12,10 +12,10 @@ func TestStatsStoreSummaryAndRecent(t *testing.T) {
 	}
 	defer store.Close()
 
-	if err := store.Record("alice", "photo.jxl", 1000, 600); err != nil {
+	if err := store.Record("alice", "photo.jxl", "4032x3024", 1000, 600); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Record("bob", "video.mp4", 3000, 2400); err != nil {
+	if err := store.Record("bob", "video.mp4", "3840x2160", 3000, 2400); err != nil {
 		t.Fatal(err)
 	}
 
@@ -34,7 +34,25 @@ func TestStatsStoreSummaryAndRecent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(recent) != 2 || recent[0].Filename != "video.mp4" {
+	if len(recent) != 2 || recent[0].Filename != "video.mp4" || recent[0].Resolution != "3840x2160" {
 		t.Fatalf("unexpected recent assets: %+v", recent)
+	}
+}
+
+func TestStatsStoreMigratesResolutionColumn(t *testing.T) {
+	databasePath := filepath.Join(t.TempDir(), "stats.db")
+	store, err := NewStatsStore(databasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.Close()
+
+	store, err = NewStatsStore(databasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if err := store.Record("alice", "photo.jpg", "1920x1080", 1000, 900); err != nil {
+		t.Fatal(err)
 	}
 }

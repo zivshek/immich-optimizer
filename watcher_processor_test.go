@@ -138,3 +138,40 @@ func TestProcessFileIgnoresHiddenFile(t *testing.T) {
 		t.Fatalf("hidden file should remain untouched: %v", err)
 	}
 }
+
+func TestParseMediaResolutionUsesDisplayedDimensions(t *testing.T) {
+	tests := []struct {
+		name string
+		json string
+		want string
+	}{
+		{
+			name: "unrotated",
+			json: `{"streams":[{"width":3840,"height":2160}]}`,
+			want: "3840x2160",
+		},
+		{
+			name: "negative ninety",
+			json: `{"streams":[{"width":3840,"height":2160,"side_data_list":[{"rotation":-90}]}]}`,
+			want: "2160x3840",
+		},
+		{
+			name: "positive ninety",
+			json: `{"streams":[{"width":1920,"height":1080,"side_data_list":[{"rotation":90}]}]}`,
+			want: "1080x1920",
+		},
+		{
+			name: "one eighty",
+			json: `{"streams":[{"width":3840,"height":2160,"side_data_list":[{"rotation":180}]}]}`,
+			want: "3840x2160",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := parseMediaResolution([]byte(test.json)); got != test.want {
+				t.Fatalf("parseMediaResolution() = %q, want %q", got, test.want)
+			}
+		})
+	}
+}

@@ -205,6 +205,19 @@ docker exec immich-optimizer ffmpeg -hide_banner -f lavfi \
   -i color=size=1280x720:rate=30 -t 1 -c:v hevc_nvenc -f null -
 ```
 
+For more image savings while preserving most visible quality, use the balanced
+JPEG XL profile:
+
+```yaml
+IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/balanced-jxl-nvidia-ffmpeg/tasks.yaml
+```
+
+It encodes JPEG photos using JPEG XL distance `1.0`, the codec's visually
+near-lossless region, and explicitly restores and validates photo metadata.
+Unlike reversible `--lossless_jpeg=1`, this cannot reconstruct the original
+JPEG bit-for-bit. PNG and other supported non-JPEG images remain lossless, and
+the video settings are unchanged.
+
 ### 🚀 Custom Image (GPU Acceleration, FFMPEG, etc.)
 
 Hardware-accelerated video encoding (NVidia NVENC, Intel VAAPI, etc.) is **not included in the base image** because providing a one-size-fits-all solution is complex and leads to massive image fragmentation. Furthermore, there are some limitations with the upstream HandBrake base image not supporting `arm64` (see [jlesage/docker-handbrake#48](https://github.com/jlesage/docker-handbrake/issues/48)).

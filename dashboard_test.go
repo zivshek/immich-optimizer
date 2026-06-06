@@ -14,7 +14,7 @@ func TestDashboardHandlers(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	if err := store.Record("alice", "photo.jxl", 1000, 500); err != nil {
+	if err := store.Record("alice", "photo.jxl", "4032x3024", 1000, 500); err != nil {
 		t.Fatal(err)
 	}
 

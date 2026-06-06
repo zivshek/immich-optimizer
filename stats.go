@@ -26,6 +26,7 @@ type ProcessedAsset struct {
 	ID            int64     `json:"id"`
 	Profile       string    `json:"profile"`
 	Filename      string    `json:"filename"`
+	Resolution    string    `json:"resolution"`
 	OriginalBytes int64     `json:"original_bytes"`
 	UploadedBytes int64     `json:"uploaded_bytes"`
 	SavedBytes    int64     `json:"saved_bytes"`
@@ -70,6 +71,7 @@ func (store *StatsStore) init() error {
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			profile TEXT NOT NULL,
 			filename TEXT NOT NULL,
+			resolution TEXT NOT NULL DEFAULT '',
 			original_bytes INTEGER NOT NULL,
 			uploaded_bytes INTEGER NOT NULL,
 			processed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -80,17 +82,49 @@ func (store *StatsStore) init() error {
 	if err != nil {
 		return fmt.Errorf("initialize statistics database: %w", err)
 	}
-	return nil
+	return store.ensureColumn("processed_assets", "resolution", "TEXT NOT NULL DEFAULT ''")
 }
 
 func (store *StatsStore) Close() error {
 	return store.db.Close()
 }
 
-func (store *StatsStore) Record(profile, filename string, originalBytes, uploadedBytes int64) error {
+func (store *StatsStore) ensureColumn(table, column, definition string) error {
+	rows, err := store.db.Query(fmt.Sprintf("PRAGMA table_info(%s)", table))
+	if err != nil {
+		return fmt.Errorf("inspect statistics database schema: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var cid int
+		var name, dataType string
+		var notNull, primaryKey int
+		var defaultValue any
+		if err := rows.Scan(&cid, &name, &dataType, &notNull, &defaultValue, &primaryKey); err != nil {
+			return fmt.Errorf("scan statistics database schema: %w", err)
+		}
+		if name == column {
+			return nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("inspect statistics database schema: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return fmt.Errorf("close statistics database schema inspection: %w", err)
+	}
+
+	if _, err := store.db.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", table, column, definition)); err != nil {
+		return fmt.Errorf("migrate statistics database schema: %w", err)
+	}
+	return nil
+}
+
+func (store *StatsStore) Record(profile, filename, resolution string, originalBytes, uploadedBytes int64) error {
 	_, err := store.db.Exec(
-		`INSERT INTO processed_assets (profile, filename, original_bytes, uploaded_bytes) VALUES (?, ?, ?, ?)`,
-		profile, filename, originalBytes, uploadedBytes,
+		`INSERT INTO processed_assets (profile, filename, resolution, original_bytes, uploaded_bytes) VALUES (?, ?, ?, ?, ?)`,
+		profile, filename, resolution, originalBytes, uploadedBytes,
 	)
 	if err != nil {
 		return fmt.Errorf("record processed asset: %w", err)
@@ -120,7 +154,7 @@ func (store *StatsStore) Summary() (DashboardStats, error) {
 
 func (store *StatsStore) Recent(limit int) ([]ProcessedAsset, error) {
 	rows, err := store.db.Query(`
-		SELECT id, profile, filename, original_bytes, uploaded_bytes, processed_at
+		SELECT id, profile, filename, resolution, original_bytes, uploaded_bytes, processed_at
 		FROM processed_assets
 		ORDER BY processed_at DESC, id DESC
 		LIMIT ?
@@ -137,6 +171,7 @@ func (store *StatsStore) Recent(limit int) ([]ProcessedAsset, error) {
 			&asset.ID,
 			&asset.Profile,
 			&asset.Filename,
+			&asset.Resolution,
 			&asset.OriginalBytes,
 			&asset.UploadedBytes,
 			&asset.ProcessedAt,

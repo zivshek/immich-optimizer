@@ -1,8 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"math"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -65,7 +68,7 @@ func (fw *FileWatcher) processFile(originalFilePath string) {
 	if !fw.shouldOptimizeFile(originalFilePath) {
 		if fw.uploadToImmich(originalFilePath) {
 			size := fileSize(originalFilePath)
-			fw.recordProcessed(filepath.Base(originalFilePath), size, size)
+			fw.recordProcessed(filepath.Base(originalFilePath), originalFilePath, size, size)
 			fw.cleanupOriginalFile(originalFilePath)
 		}
 		return
@@ -164,7 +167,7 @@ func (fw *FileWatcher) uploadProcessedFile(originalFilePath string, tp *TaskProc
 	if !fw.uploadToImmichWithFilename(processedFilePath, processedFilename) {
 		return false
 	}
-	fw.recordProcessed(processedFilename, tp.OriginalSize, tp.ProcessedSize)
+	fw.recordProcessed(processedFilename, originalFilePath, tp.OriginalSize, tp.ProcessedSize)
 	return true
 }
 
@@ -175,7 +178,7 @@ func (fw *FileWatcher) uploadOriginalFile(filePath string) bool {
 		return false
 	}
 	size := fileSize(filePath)
-	fw.recordProcessed(filepath.Base(filePath), size, size)
+	fw.recordProcessed(filepath.Base(filePath), filePath, size, size)
 	return true
 }
 
@@ -186,13 +189,62 @@ func (fw *FileWatcher) cleanupOriginalFile(filePath string) {
 	}
 }
 
-func (fw *FileWatcher) recordProcessed(filename string, originalBytes, uploadedBytes int64) {
+func (fw *FileWatcher) recordProcessed(filename, originalFilePath string, originalBytes, uploadedBytes int64) {
 	if fw.statsStore == nil {
 		return
 	}
-	if err := fw.statsStore.Record(fw.profile.Name, filename, originalBytes, uploadedBytes); err != nil {
+	resolution := mediaResolution(originalFilePath)
+	if err := fw.statsStore.Record(fw.profile.Name, filename, resolution, originalBytes, uploadedBytes); err != nil {
 		fw.logger.Printf("Error recording statistics for %s: %v", filename, err)
 	}
+}
+
+func mediaResolution(filePath string) string {
+	output, err := exec.Command(
+		"ffprobe",
+		"-v", "error",
+		"-select_streams", "v:0",
+		"-show_entries", "stream=width,height:stream_side_data=rotation",
+		"-of", "json",
+		filePath,
+	).Output()
+	if err != nil {
+		return ""
+	}
+	return parseMediaResolution(output)
+}
+
+func parseMediaResolution(output []byte) string {
+	type sideData struct {
+		Rotation float64 `json:"rotation"`
+	}
+	type stream struct {
+		Width    int        `json:"width"`
+		Height   int        `json:"height"`
+		SideData []sideData `json:"side_data_list"`
+	}
+	type probeResult struct {
+		Streams []stream `json:"streams"`
+	}
+
+	var probe probeResult
+	if err := json.Unmarshal(output, &probe); err != nil || len(probe.Streams) == 0 {
+		return ""
+	}
+
+	width := probe.Streams[0].Width
+	height := probe.Streams[0].Height
+	for _, sideData := range probe.Streams[0].SideData {
+		rotation := math.Mod(math.Abs(sideData.Rotation), 180)
+		if math.Abs(rotation-90) < 0.5 {
+			width, height = height, width
+			break
+		}
+	}
+	if width <= 0 || height <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("%dx%d", width, height)
 }
 
 func fileSize(filePath string) int64 {
