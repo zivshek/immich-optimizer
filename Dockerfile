@@ -54,6 +54,7 @@ RUN groupadd -r appuser && \
     imagemagick \
     jq \
     libc6 \
+    libio-compress-brotli-perl \
     libjxl-tools \
     libgif7 \
     libtcmalloc-minimal4 \

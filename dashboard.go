@@ -136,10 +136,11 @@ const dashboardHTML = `<!doctype html>
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px system-ui,sans-serif}
 main{max-width:1600px;margin:auto;padding:24px}h1{margin:0 0 20px;font-size:24px}.cards{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}
 .card,.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px}.label{color:var(--muted);font-size:12px;text-transform:uppercase}.value{font-size:28px;font-weight:700;margin-top:8px}
-.grid{display:grid;grid-template-columns:1.2fr 1fr;gap:14px;margin-top:14px}.panel{overflow:hidden}.panel h2{font-size:15px;margin:0 0 14px}
+.dashboard-section{margin-top:24px}.panel{overflow:hidden}.panel-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}.panel h2{font-size:15px;margin:0}
+button{border:1px solid var(--line);border-radius:7px;background:#1e293b;color:var(--text);padding:7px 12px;font:inherit;cursor:pointer}button:hover{background:#273449}button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:9px;border-bottom:1px solid var(--line)}th{color:var(--muted);font-size:11px;text-transform:uppercase}
 #logs{height:440px;overflow:auto;white-space:pre-wrap;font:12px ui-monospace,monospace;color:#cbd5e1}.good{color:#86efac}
-@media(max-width:1100px){.cards{grid-template-columns:repeat(3,1fr)}.grid{grid-template-columns:1fr}}@media(max-width:700px){.cards{grid-template-columns:repeat(2,1fr)}}@media(max-width:520px){.cards{grid-template-columns:1fr}}
+@media(max-width:1100px){.cards{grid-template-columns:repeat(3,1fr)}}@media(max-width:700px){.cards{grid-template-columns:repeat(2,1fr)}}@media(max-width:520px){.cards{grid-template-columns:1fr}}
 </style>
 </head>
 <body><main>
@@ -151,21 +152,38 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:9px;bord
 <div class="card"><div class="label">Space Saved</div><div class="value good" id="saved">0 B</div></div>
 <div class="card"><div class="label">Total Reduction</div><div class="value good" id="reduction">0%</div></div>
 </section>
-<section>
-<div class="panel"><h2>Recent Uploads</h2><table><thead><tr><th>Time</th><th>Profile</th><th>File</th><th>Resolution</th><th>Original Size</th><th>Compressed Size</th><th>Saved</th><th>Reduction</th></tr></thead><tbody id="recent"></tbody></table></div>
+<section class="dashboard-section">
+<div class="panel"><div class="panel-header"><h2>Recent Uploads</h2></div><table><thead><tr><th>Time</th><th>Profile</th><th>File</th><th>Resolution</th><th>Original Size</th><th>Compressed Size</th><th>Saved</th><th>Reduction</th></tr></thead><tbody id="recent"></tbody></table></div>
 </section>
-<section>
-<div class="panel"><h2>Current Log</h2><div id="logs"></div></div>
+<section class="dashboard-section">
+<div class="panel"><div class="panel-header"><h2>Current Log</h2><button id="copy-log" type="button">Copy Log</button></div><div id="logs"></div></div>
 </section>
 </main>
 <script>
 const size=n=>{const u=['B','KB','MB','GB','TB'];let i=0;while(n>=1024&&i<u.length-1){n/=1024;i++}return n.toFixed(i?2:0)+' '+u[i]};
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const copyLog=document.getElementById('copy-log');
+copyLog.addEventListener('click',async()=>{
+ try{
+  await navigator.clipboard.writeText(logs.textContent);
+ }catch{
+  const selection=window.getSelection(),range=document.createRange();
+  range.selectNodeContents(logs);selection.removeAllRanges();selection.addRange(range);
+  document.execCommand('copy');selection.removeAllRanges();
+ }
+ copyLog.textContent='Copied';
+ setTimeout(()=>copyLog.textContent='Copy Log',1500);
+});
 async function refresh(){
  const [s,r,l]=await Promise.all([fetch('/api/stats').then(x=>x.json()),fetch('/api/recent').then(x=>x.json()),fetch('/api/logs').then(x=>x.json())]);
  count.textContent=s.processed_count;original.textContent=size(s.original_bytes);compressed.textContent=size(s.uploaded_bytes);saved.textContent=size(s.saved_bytes);reduction.textContent=s.reduction_percent.toFixed(1)+'%';
- recent.innerHTML=r.map(x=>'<tr><td>'+new Date(x.processed_at).toLocaleString()+'</td><td>'+esc(x.profile)+'</td><td title="'+esc(x.filename)+'">'+esc(x.filename)+'</td><td>'+(x.resolution?esc(x.resolution):'—')+'</td><td>'+size(x.original_bytes)+'</td><td>'+size(x.uploaded_bytes)+'</td><td>'+size(x.saved_bytes)+'</td><td>'+x.reduction_percent.toFixed(1)+'%</td></tr>').join('');
- logs.textContent=l.join('\n');logs.scrollTop=logs.scrollHeight;
+ recent.innerHTML=r.map(x=>'<tr><td>'+new Date(x.processed_at).toLocaleString()+'</td><td>'+esc(x.profile)+'</td><td title="'+esc(x.filename)+'">'+esc(x.filename)+'</td><td>'+(x.resolution?esc(x.resolution):'&mdash;')+'</td><td>'+size(x.original_bytes)+'</td><td>'+size(x.uploaded_bytes)+'</td><td>'+size(x.saved_bytes)+'</td><td>'+x.reduction_percent.toFixed(1)+'%</td></tr>').join('');
+ const logText=l.join('\n');
+ if(logs.textContent!==logText){
+  const followLog=logs.scrollHeight-logs.scrollTop-logs.clientHeight<30;
+  logs.textContent=logText;
+  if(followLog)logs.scrollTop=logs.scrollHeight;
+ }
 }
 refresh();setInterval(refresh,2000);
 </script></body></html>`

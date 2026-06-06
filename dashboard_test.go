@@ -35,4 +35,13 @@ func TestDashboardHandlers(t *testing.T) {
 	if !strings.Contains(logResponse.Body.String(), "processing photo.jpg") {
 		t.Fatalf("unexpected logs response: %s", logResponse.Body.String())
 	}
+
+	indexRequest := httptest.NewRequest(http.MethodGet, "/", nil)
+	indexResponse := httptest.NewRecorder()
+	dashboard.handleIndex(indexResponse, indexRequest)
+	for _, expected := range []string{`id="copy-log"`, "navigator.clipboard.writeText", `class="dashboard-section"`} {
+		if !strings.Contains(indexResponse.Body.String(), expected) {
+			t.Fatalf("dashboard HTML is missing %q", expected)
+		}
+	}
 }
