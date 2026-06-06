@@ -28,6 +28,8 @@ type AppConfig struct {
 	WatchDir              string
 	UndoneDir             string
 	ConfigFile            string
+	ProfileNames          string
+	ProfilesInlineConfig  string
 	ProfilesFile          string
 	MaxConcurrentRequests int
 	HTTPTimeoutSeconds    int
@@ -58,6 +60,8 @@ func loadAppConfig() (*AppConfig, error) {
 	viper.BindEnv("undone_dir")
 	viper.BindEnv("tasks_file")
 	viper.BindEnv("profiles_file")
+	viper.BindEnv("profiles")
+	viper.BindEnv("profiles_config")
 
 	viper.SetDefault("immich_url", "")
 	viper.SetDefault("immich_api_key", "")
@@ -65,6 +69,8 @@ func loadAppConfig() (*AppConfig, error) {
 	viper.SetDefault("undone_dir", "/undone")
 	viper.SetDefault("tasks_file", "tasks.yaml")
 	viper.SetDefault("profiles_file", "")
+	viper.SetDefault("profiles", "")
+	viper.SetDefault("profiles_config", "")
 
 	flag.BoolVar(&appConfig.ShowVersion, "version", false, "Show the current version")
 	flag.StringVar(&appConfig.ImmichURL, "immich_url", viper.GetString("immich_url"), "Immich server URL. Example: http://immich-server:2283")
@@ -73,6 +79,8 @@ func loadAppConfig() (*AppConfig, error) {
 	flag.StringVar(&appConfig.UndoneDir, "undone_dir", viper.GetString("undone_dir"), "Directory to copy files that failed processing or upload")
 	flag.StringVar(&appConfig.ConfigFile, "tasks_file", viper.GetString("tasks_file"), "Path to the configuration file")
 	flag.StringVar(&appConfig.ProfilesFile, "profiles_file", viper.GetString("profiles_file"), "Path to a multi-user profiles configuration file")
+	flag.StringVar(&appConfig.ProfileNames, "profiles", viper.GetString("profiles"), "Comma-separated profile names configured through environment variables")
+	flag.StringVar(&appConfig.ProfilesInlineConfig, "profiles_config", viper.GetString("profiles_config"), "Inline YAML multi-user profiles configuration")
 	flag.Parse()
 
 	if appConfig.ShowVersion {
@@ -87,6 +95,32 @@ func loadAppConfig() (*AppConfig, error) {
 func (ac *AppConfig) validate() error {
 	if ac.ProfilesFile != "" {
 		profiles, err := NewProfilesConfig(ac.ProfilesFile)
+		if err != nil {
+			return err
+		}
+		for i := range profiles.Profiles {
+			if err := ac.prepareProfile(&profiles.Profiles[i]); err != nil {
+				return fmt.Errorf("invalid profile %q: %w", profiles.Profiles[i].Name, err)
+			}
+		}
+		ac.Profiles = profiles.Profiles
+		return nil
+	}
+	if ac.ProfilesInlineConfig != "" {
+		profiles, err := NewProfilesFromInlineConfig(ac.ProfilesInlineConfig, ac.ImmichURL, ac.ConfigFile)
+		if err != nil {
+			return err
+		}
+		for i := range profiles.Profiles {
+			if err := ac.prepareProfile(&profiles.Profiles[i]); err != nil {
+				return fmt.Errorf("invalid profile %q: %w", profiles.Profiles[i].Name, err)
+			}
+		}
+		ac.Profiles = profiles.Profiles
+		return nil
+	}
+	if ac.ProfileNames != "" {
+		profiles, err := NewProfilesFromEnvironment(ac.ProfileNames, ac.ImmichURL, ac.ConfigFile)
 		if err != nil {
 			return err
 		}

@@ -73,19 +73,25 @@ services:
 
 ### Multi-user profiles
 
-Set `IUO_PROFILES_FILE` to run one isolated watcher and Immich API client per
-landing folder. Each profile has its own API key, watch directory, failure
-directory, and optimization task file. API keys can reference environment
-variables.
+Set `IUO_PROFILES_CONFIG` to a YAML block to run isolated watchers and Immich
+API clients directly from Docker Compose. `IUO_IMMICH_URL` and
+`IUO_TASKS_FILE` are shared. Each profile only defines its user, API key,
+watch directory, and failure directory.
 
 ```yaml
-profiles:
-  - name: alice
-    immich_url: http://immich-server:2283
-    immich_api_key: ${ALICE_IMMICH_API_KEY}
-    watch_dir: /inbox/alice
-    undone_dir: /undone/alice
-    tasks_file: /etc/immich-optimizer/bundled-configs/storage-saver-amd-gpu/tasks.yaml
+environment:
+  IUO_IMMICH_URL: http://immich-server:2283
+  IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/lossless/tasks.yaml
+  IUO_PROFILES_CONFIG: |
+    profiles:
+      - user: alice
+        api_key: ${ALICE_IMMICH_API_KEY}
+        watch_dir: /inbox/alice
+        undone_dir: /undone/alice
+      - user: bob
+        api_key: ${BOB_IMMICH_API_KEY}
+        watch_dir: /inbox/bob
+        undone_dir: /undone/bob
 ```
 
 Start the included example:
@@ -94,9 +100,9 @@ Start the included example:
 docker compose -f compose.multi-user.yaml up -d
 ```
 
-Profile paths must not overlap. Relative paths are resolved from the directory
-containing the profiles file. The original single-user environment variables
-and flags remain supported when `IUO_PROFILES_FILE` is not set.
+Profile paths must not overlap. The original single-user settings,
+`IUO_PROFILES_FILE`, and per-profile environment-variable format remain
+supported when `IUO_PROFILES_CONFIG` is not set.
 
 ### GPU passthrough
 
@@ -152,6 +158,8 @@ RUN set -eux; \
 | `IUO_WATCH_DIR` | Directory to watch for files | `/watch` |
 | `IUO_UNDONE_DIR` | Directory for files that failed processing/upload | `/undone` |
 | `IUO_TASKS_FILE` | Path to tasks configuration | `tasks.yaml` |
+| `IUO_PROFILES` | Comma-separated profile names configured through environment variables | - |
+| `IUO_PROFILES_CONFIG` | Inline YAML profile list for Docker Compose and Dockge | - |
 | `IUO_PROFILES_FILE` | Path to multi-user profiles configuration; enables profile mode | - |
 
 ### Command Line Options
@@ -165,6 +173,7 @@ Options:
   -watch_dir string      Directory to watch (default "/watch")
   -undone_dir string     Directory for failed files (default "/undone")
   -tasks_file string     Tasks configuration file (default "tasks.yaml")
+  -profiles_config string Inline YAML multi-user profiles configuration
   -profiles_file string  Multi-user profiles configuration file
   -version               Show version information
 ```

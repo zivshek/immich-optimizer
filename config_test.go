@@ -65,3 +65,68 @@ profiles:
 		t.Fatalf("expected overlap error, got %v", err)
 	}
 }
+
+func TestNewProfilesFromEnvironmentUsesSharedSettings(t *testing.T) {
+	t.Setenv("IUO_PROFILE_HSHI_API_KEY", "test-api-key-long-enough")
+	t.Setenv("IUO_PROFILE_HSHI_WATCH_DIR", "/inbox/hshi")
+	t.Setenv("IUO_PROFILE_HSHI_UNDONE_DIR", "/undone/hshi")
+
+	profiles, err := NewProfilesFromEnvironment(
+		"hshi",
+		"http://immich:2283",
+		"/etc/immich-optimizer/bundled-configs/storage-saver-nvidia-gpu/tasks.yaml",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	profile := profiles.Profiles[0]
+	if profile.ImmichURL != "http://immich:2283" {
+		t.Fatalf("unexpected shared Immich URL: %q", profile.ImmichURL)
+	}
+	if profile.ConfigFile != "/etc/immich-optimizer/bundled-configs/storage-saver-nvidia-gpu/tasks.yaml" {
+		t.Fatalf("unexpected shared tasks file: %q", profile.ConfigFile)
+	}
+	if profile.ImmichAPIKey != "test-api-key-long-enough" {
+		t.Fatalf("unexpected profile API key: %q", profile.ImmichAPIKey)
+	}
+}
+
+func TestNormalizeProfileEnvName(t *testing.T) {
+	if got := normalizeProfileEnvName("Jane-Doe"); got != "JANE_DOE" {
+		t.Fatalf("unexpected normalized name: %q", got)
+	}
+}
+
+func TestNewProfilesFromInlineConfigUsesSharedSettings(t *testing.T) {
+	config := `
+profiles:
+  - user: hshi
+    api_key: test-api-key-long-enough
+    watch_dir: /inbox/hshi
+    undone_dir: /undone/hshi
+`
+
+	profiles, err := NewProfilesFromInlineConfig(
+		config,
+		"http://immich:2283",
+		"/etc/immich-optimizer/bundled-configs/storage-saver-nvidia-gpu/tasks.yaml",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	profile := profiles.Profiles[0]
+	if profile.Name != "hshi" {
+		t.Fatalf("unexpected profile name: %q", profile.Name)
+	}
+	if profile.ImmichURL != "http://immich:2283" {
+		t.Fatalf("unexpected shared Immich URL: %q", profile.ImmichURL)
+	}
+	if profile.ConfigFile != "/etc/immich-optimizer/bundled-configs/storage-saver-nvidia-gpu/tasks.yaml" {
+		t.Fatalf("unexpected shared tasks file: %q", profile.ConfigFile)
+	}
+	if profile.ImmichAPIKey != "test-api-key-long-enough" {
+		t.Fatalf("unexpected profile API key: %q", profile.ImmichAPIKey)
+	}
+}

@@ -3,11 +3,19 @@ services:
     image: ghcr.io/zivshek/immich-optimizer:latest
     container_name: immich-optimizer
     environment:
-      IUO_PROFILES_FILE: /etc/immich-optimizer/profiles.yaml
-      ALICE_IMMICH_API_KEY: ${ALICE_IMMICH_API_KEY}
-      BOB_IMMICH_API_KEY: ${BOB_IMMICH_API_KEY}
+      IUO_IMMICH_URL: http://immich-server:2283
+      IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/lossless/tasks.yaml
+      IUO_PROFILES_CONFIG: |
+        profiles:
+          - user: alice
+            api_key: ${ALICE_IMMICH_API_KEY}
+            watch_dir: /inbox/alice
+            undone_dir: /undone/alice
+          - user: bob
+            api_key: ${BOB_IMMICH_API_KEY}
+            watch_dir: /inbox/bob
+            undone_dir: /undone/bob
     volumes:
-      - ./config/profiles.example.yaml:/etc/immich-optimizer/profiles.yaml:ro
       - ./inbox:/inbox
       - ./undone:/undone
     restart: unless-stopped
