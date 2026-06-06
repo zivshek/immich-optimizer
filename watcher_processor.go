@@ -20,6 +20,21 @@ func (fw *FileWatcher) isTempFile(filePath string) bool {
 	return false
 }
 
+// isHiddenPath checks whether any path component below the watched root begins with a dot.
+func (fw *FileWatcher) isHiddenPath(filePath string) bool {
+	relativePath, err := filepath.Rel(fw.watchDir, filePath)
+	if err != nil {
+		return false
+	}
+
+	for _, component := range strings.Split(filepath.Clean(relativePath), string(filepath.Separator)) {
+		if component != "." && strings.HasPrefix(component, ".") {
+			return true
+		}
+	}
+	return false
+}
+
 // processFile handles the complete file processing workflow
 func (fw *FileWatcher) processFile(originalFilePath string) {
 	// Deduplicate parallel events: abort if this file is already running in another goroutine
@@ -27,6 +42,10 @@ func (fw *FileWatcher) processFile(originalFilePath string) {
 		return
 	}
 	defer fw.processing.Delete(originalFilePath)
+
+	if fw.isHiddenPath(originalFilePath) {
+		return
+	}
 
 	if fw.semaphore != nil {
 		fw.semaphore <- struct{}{}

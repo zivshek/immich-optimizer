@@ -58,6 +58,9 @@ func (fw *FileWatcher) handleInotifyEvent(event *unix.InotifyEvent, name, watche
 	}
 
 	filePath := filepath.Join(watchedDir, name)
+	if fw.isHiddenPath(filePath) {
+		return
+	}
 
 	// Debug log to confirm what raw events are produced (especially for rename operations)
 	fw.logger.Printf("[DEBUG] raw inotify event: mask=0x%x, name=%s, watchedDir=%s", event.Mask, name, watchedDir)
@@ -66,7 +69,7 @@ func (fw *FileWatcher) handleInotifyEvent(event *unix.InotifyEvent, name, watche
 		fw.handleDirectoryCreation(filePath)
 
 		// Rescue hardlinks / atomic creations sent by sync clients (like FolderSync)
-		// Because they only emit IN_CREATE without IN_MOVED_TO or IN_CLOSE_WRITE, we identify 
+		// Because they only emit IN_CREATE without IN_MOVED_TO or IN_CLOSE_WRITE, we identify
 		// them by matching their inode to a temporary file that just finished writing.
 		if info, err := os.Stat(filePath); err == nil && !info.IsDir() && !fw.isTempFile(filePath) {
 			if statT, ok := info.Sys().(*syscall.Stat_t); ok {

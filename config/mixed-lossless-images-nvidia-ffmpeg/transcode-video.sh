@@ -20,10 +20,9 @@ ffmpeg -hide_banner -y \
   -rc vbr \
   -cq 18 \
   -b:v 0 \
-  -profile:v main10 \
-  -pix_fmt p010le \
+  -profile:v main \
+  -pix_fmt yuv420p \
   -spatial_aq 1 \
-  -temporal_aq 1 \
   -rc-lookahead 32 \
   -c:a copy \
   -c:s copy \

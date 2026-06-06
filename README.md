@@ -7,6 +7,8 @@
 
 A file optimization service that automatically processes and uploads media files to [Immich](https://immich.app/). This tool watches for new files in a directory, applies configurable optimization tasks, and uploads the optimized results to your Immich instance.
 
+Files and directories whose names begin with `.` are ignored.
+
 ## ✨ Features
 
 - **📁 File Watching**: Automatically monitors directories for new media files
@@ -145,6 +147,16 @@ dimensions and source display rotation, applies no scale or crop filters, and
 copies audio/subtitle streams without re-encoding. For example, stored
 `3840x2160` frames with a `-90` degree display rotation remain `3840x2160`
 frames with the rotation metadata preserved.
+
+The profile uses broadly compatible 8-bit HEVC NVENC settings because forcing
+10-bit output or Temporal AQ can cause otherwise NVENC-capable GPUs to reject
+the encode. Test GPU access and encoder initialization inside the container:
+
+```bash
+docker exec immich-optimizer nvidia-smi
+docker exec immich-optimizer ffmpeg -hide_banner -f lavfi \
+  -i color=size=1280x720:rate=30 -t 1 -c:v hevc_nvenc -f null -
+```
 
 ### 🚀 Custom Image (GPU Acceleration, FFMPEG, etc.)
 

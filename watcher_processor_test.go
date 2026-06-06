@@ -85,3 +85,56 @@ func TestTaskProcessorAcceptsPassthroughTask(t *testing.T) {
 		t.Fatal("passthrough task unexpectedly created a processed file")
 	}
 }
+
+func TestIsHiddenPath(t *testing.T) {
+	watchDir := t.TempDir()
+	watcher := &FileWatcher{watchDir: watchDir}
+
+	tests := []struct {
+		path       string
+		wantHidden bool
+	}{
+		{path: filepath.Join(watchDir, ".trashed-video.mp4"), wantHidden: true},
+		{path: filepath.Join(watchDir, "Camera", ".trashed-video.mp4"), wantHidden: true},
+		{path: filepath.Join(watchDir, ".thumbnails", "photo.jpg"), wantHidden: true},
+		{path: filepath.Join(watchDir, "Camera", "photo.jpg"), wantHidden: false},
+	}
+
+	for _, test := range tests {
+		if got := watcher.isHiddenPath(test.path); got != test.wantHidden {
+			t.Errorf("isHiddenPath(%q) = %v, want %v", test.path, got, test.wantHidden)
+		}
+	}
+}
+
+func TestProcessFileIgnoresHiddenFile(t *testing.T) {
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		w.WriteHeader(http.StatusCreated)
+	}))
+	defer server.Close()
+
+	watchDir := t.TempDir()
+	filePath := filepath.Join(watchDir, ".trashed-photo.jpg")
+	if err := os.WriteFile(filePath, []byte("photo"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	logger := log.New(os.Stderr, "", 0)
+	watcher := &FileWatcher{
+		watchDir:     watchDir,
+		immichClient: NewImmichClient(server.URL, "profile-api-key", 5, newCustomLogger(logger, "")),
+		config:       &Config{},
+		logger:       logger,
+	}
+
+	watcher.processFile(filePath)
+
+	if requests != 0 {
+		t.Fatalf("hidden file triggered %d upload requests", requests)
+	}
+	if _, err := os.Stat(filePath); err != nil {
+		t.Fatalf("hidden file should remain untouched: %v", err)
+	}
+}

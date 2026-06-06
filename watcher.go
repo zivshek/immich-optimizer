@@ -124,6 +124,13 @@ func (fw *FileWatcher) addWatchRecursive(dir string) error {
 			return err
 		}
 
+		if path != dir && fw.isHiddenPath(path) {
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
 		if d.IsDir() {
 			return fw.addDirectoryWatch(path)
 		}
@@ -148,6 +155,13 @@ func (fw *FileWatcher) processExistingFilesRecursive(dir string) {
 	filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			fw.logger.Printf("Error walking directory %s: %v", path, err)
+			return nil
+		}
+
+		if path != dir && fw.isHiddenPath(path) {
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 
