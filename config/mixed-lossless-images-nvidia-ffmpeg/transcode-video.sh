@@ -6,15 +6,15 @@ dst=$2
 
 # Keep the stored frame dimensions unchanged and preserve the source display
 # rotation metadata. No scale, crop, or autorotation filter is applied.
+# Pixel mett data streams are intentionally not mapped: FFmpeg reads them as
+# codec "none" but cannot mux them into the output MP4.
 ffmpeg -hide_banner -y \
   -noautorotate \
   -i "$src" \
   -map 0:v:0 \
   -map 0:a? \
-  -map 0:d? \
   -map_metadata 0 \
   -map_chapters 0 \
-  -copy_unknown \
   -c:v hevc_nvenc \
   -preset p7 \
   -tune hq \
@@ -26,7 +26,6 @@ ffmpeg -hide_banner -y \
   -spatial_aq 1 \
   -rc-lookahead 32 \
   -c:a copy \
-  -c:d copy \
   -tag:v hvc1 \
   -movflags +faststart+use_metadata_tags \
   "$dst"
