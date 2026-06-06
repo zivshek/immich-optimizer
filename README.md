@@ -9,6 +9,35 @@ A file optimization service that automatically processes and uploads media files
 
 Files and directories whose names begin with `.` are ignored.
 
+## Fork Differences
+
+This fork extends the original
+[`miguelangel-nubla/immich-optimizer`](https://github.com/miguelangel-nubla/immich-optimizer)
+for server-side processing **before** assets are uploaded to Immich.
+
+- **Multi-user ingestion:** Assign separate watched and failure directories to
+  different Immich users/API keys while sharing one optimizer container.
+- **Compose and Dockge friendly profiles:** Define profiles inline with
+  `IUO_PROFILES_CONFIG`, without mounting a separate profiles file.
+- **GPU processing:** Includes NVIDIA NVENC and AMD/Intel VAAPI Compose
+  examples and bundled processing profiles.
+- **Mixed optimization profiles:** Supports lossless image optimization
+  together with high-quality NVIDIA FFmpeg or HandBrake video transcoding.
+- **Phone-video preservation:** The NVIDIA FFmpeg profile preserves stored
+  dimensions and display rotation, restores writable GPS/camera/date metadata,
+  and validates critical metadata before upload.
+- **Safer processing:** Originals are deleted only after a successful Immich
+  upload. Failed files are copied to the profile's `undone` directory.
+- **FolderSync-aware watching:** Handles atomic file placement and hardlinks,
+  and ignores hidden files/directories such as `.trashed-*`.
+- **Fork publishing:** Multi-architecture images are published to
+  `ghcr.io/zivshek/immich-optimizer`.
+
+When using FolderSync, configure it not to resync unchanged source files after
+the optimizer removes a successfully uploaded landing-zone file. Optimized
+assets differ from the originals, so Immich Mobile may display a local original
+and optimized cloud asset separately while both exist.
+
 ## ✨ Features
 
 - **📁 File Watching**: Automatically monitors directories for new media files
