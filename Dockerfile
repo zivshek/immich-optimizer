@@ -64,8 +64,8 @@ RUN groupadd -r appuser && \
     libva-drm2 \
     mesa-va-drivers && \
     rm -rf /var/lib/apt/lists/* && \
-    mkdir -p /etc/immich-optimizer/config /etc/immich-optimizer/bundled-configs /watch /undone && \
-    chown -R appuser:appuser /etc/immich-optimizer /watch /undone
+    mkdir -p /etc/immich-optimizer/config /etc/immich-optimizer/bundled-configs /watch /undone /data && \
+    chown -R appuser:appuser /etc/immich-optimizer /watch /undone /data
 
 COPY --from=app-builder /out/immich-optimizer /usr/local/bin/immich-optimizer
 COPY --from=caesium-builder /out/caesiumclt /usr/local/bin/caesiumclt
@@ -79,7 +79,11 @@ LABEL org.opencontainers.image.title="Immich Optimizer" \
 
 ENV IUO_TASKS_FILE=/etc/immich-optimizer/config/tasks.yaml \
     IUO_WATCH_DIR=/watch \
-    IUO_UNDONE_DIR=/undone
+    IUO_UNDONE_DIR=/undone \
+    IUO_DASHBOARD_ADDRESS=:8098 \
+    IUO_STATS_DATABASE=/data/immich-optimizer.db
+
+EXPOSE 8098
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD immich-optimizer -version || exit 1

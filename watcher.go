@@ -26,7 +26,8 @@ type FileWatcher struct {
 	watchMap       map[string]int // maps directory paths to watch descriptors
 	bufferSize     int            // buffer size for reading inotify events
 	profile        *ProfileConfig // profile-specific directories and tasks
-	semaphore      chan struct{}  // shared application concurrency limit
+	statsStore     *StatsStore
+	semaphore      chan struct{} // shared application concurrency limit
 	stopOnce       sync.Once
 	processing     sync.Map // tracks files actively being processed to avoid duplicate concurrent tasks
 	closedInodes   sync.Map // tracks inodes of recently closed temporary files
@@ -40,7 +41,7 @@ type pendingCreate struct {
 }
 
 // NewFileWatcher creates a new file watcher instance
-func NewFileWatcher(profile *ProfileConfig, immichClient *ImmichClient, logger *log.Logger, bufferSize int, semaphore chan struct{}) (*FileWatcher, error) {
+func NewFileWatcher(profile *ProfileConfig, immichClient *ImmichClient, logger *log.Logger, bufferSize int, semaphore chan struct{}, statsStore *StatsStore) (*FileWatcher, error) {
 	fd, err := unix.InotifyInit()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create inotify instance: %w", err)
@@ -56,6 +57,7 @@ func NewFileWatcher(profile *ProfileConfig, immichClient *ImmichClient, logger *
 		bufferSize:   bufferSize,
 		profile:      profile,
 		semaphore:    semaphore,
+		statsStore:   statsStore,
 	}
 
 	return fw, nil

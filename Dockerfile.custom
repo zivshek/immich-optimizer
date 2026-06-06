@@ -81,8 +81,9 @@ COPY --from=builder /usr/local/bin/immich-optimizer /usr/local/bin/immich-optimi
 # Create directories with proper permissions
 RUN mkdir -p /etc/immich-optimizer/config \
     /etc/immich-optimizer/bundled-configs \
-    /watch && \
-    chown -R appuser:appuser /etc/immich-optimizer /watch
+    /watch \
+    /data && \
+    chown -R appuser:appuser /etc/immich-optimizer /watch /data
 
 # Copy configuration files
 COPY --chown=appuser:appuser config/lossless /etc/immich-optimizer/config
@@ -98,7 +99,11 @@ LABEL \
 
 # Set environment variables
 ENV IUO_TASKS_FILE=/etc/immich-optimizer/config/tasks.yaml \
-    IUO_WATCH_DIR=/watch
+    IUO_WATCH_DIR=/watch \
+    IUO_DASHBOARD_ADDRESS=:8098 \
+    IUO_STATS_DATABASE=/data/immich-optimizer.db
+
+EXPOSE 8098
 
 # Add health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \

@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net/url"
 	"os"
@@ -31,6 +32,8 @@ type AppConfig struct {
 	ProfileNames          string
 	ProfilesInlineConfig  string
 	ProfilesFile          string
+	DashboardAddress      string
+	StatsDatabase         string
 	MaxConcurrentRequests int
 	HTTPTimeoutSeconds    int
 	InotifyBufferSize     int
@@ -62,6 +65,8 @@ func loadAppConfig() (*AppConfig, error) {
 	viper.BindEnv("profiles_file")
 	viper.BindEnv("profiles")
 	viper.BindEnv("profiles_config")
+	viper.BindEnv("dashboard_address")
+	viper.BindEnv("stats_database")
 
 	viper.SetDefault("immich_url", "")
 	viper.SetDefault("immich_api_key", "")
@@ -71,6 +76,8 @@ func loadAppConfig() (*AppConfig, error) {
 	viper.SetDefault("profiles_file", "")
 	viper.SetDefault("profiles", "")
 	viper.SetDefault("profiles_config", "")
+	viper.SetDefault("dashboard_address", ":8098")
+	viper.SetDefault("stats_database", "/data/immich-optimizer.db")
 
 	flag.BoolVar(&appConfig.ShowVersion, "version", false, "Show the current version")
 	flag.StringVar(&appConfig.ImmichURL, "immich_url", viper.GetString("immich_url"), "Immich server URL. Example: http://immich-server:2283")
@@ -81,6 +88,8 @@ func loadAppConfig() (*AppConfig, error) {
 	flag.StringVar(&appConfig.ProfilesFile, "profiles_file", viper.GetString("profiles_file"), "Path to a multi-user profiles configuration file")
 	flag.StringVar(&appConfig.ProfileNames, "profiles", viper.GetString("profiles"), "Comma-separated profile names configured through environment variables")
 	flag.StringVar(&appConfig.ProfilesInlineConfig, "profiles_config", viper.GetString("profiles_config"), "Inline YAML multi-user profiles configuration")
+	flag.StringVar(&appConfig.DashboardAddress, "dashboard_address", viper.GetString("dashboard_address"), "Dashboard listen address")
+	flag.StringVar(&appConfig.StatsDatabase, "stats_database", viper.GetString("stats_database"), "SQLite statistics database path")
 	flag.Parse()
 
 	if appConfig.ShowVersion {
@@ -216,17 +225,30 @@ func main() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
-	baseLogger := log.New(os.Stdout, "", log.Ldate|log.Ltime)
+	logBuffer := NewLogBuffer(500)
+	logOutput := io.MultiWriter(os.Stdout, logBuffer)
+	baseLogger := log.New(logOutput, "", log.Ldate|log.Ltime)
 	customLogger := newCustomLogger(baseLogger, "")
 	customLogger.Printf("Starting %s", printVersion())
+
+	statsStore, err := NewStatsStore(config.StatsDatabase)
+	if err != nil {
+		customLogger.Printf("Error opening statistics database: %v", err)
+		os.Exit(1)
+	}
+	defer statsStore.Close()
+
+	dashboard := NewDashboardServer(config.DashboardAddress, statsStore, logBuffer, logOutput)
+	dashboard.Start()
+	defer dashboard.Close()
 
 	var watchers []*FileWatcher
 	for i := range config.Profiles {
 		profile := &config.Profiles[i]
-		profileBaseLogger := log.New(os.Stdout, fmt.Sprintf("profile %s: ", profile.Name), log.Ldate|log.Ltime)
+		profileBaseLogger := log.New(logOutput, fmt.Sprintf("profile %s: ", profile.Name), log.Ldate|log.Ltime)
 		profileLogger := newCustomLogger(profileBaseLogger, "")
 		immichClient := NewImmichClient(profile.ImmichURL, profile.ImmichAPIKey, config.HTTPTimeoutSeconds, profileLogger)
-		watcher, err := NewFileWatcher(profile, immichClient, profileBaseLogger, config.InotifyBufferSize, config.Semaphore)
+		watcher, err := NewFileWatcher(profile, immichClient, profileBaseLogger, config.InotifyBufferSize, config.Semaphore, statsStore)
 		if err != nil {
 			customLogger.Printf("Error creating watcher for profile %s: %v", profile.Name, err)
 			stopWatchers(watchers)

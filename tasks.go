@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"text/template"
 )
 
@@ -224,12 +225,56 @@ func (tp *TaskProcessor) executeCommand(command string) error {
 	if tp.configDir != "" {
 		cmd.Dir = tp.configDir
 	}
-	output, err := cmd.CombinedOutput()
+	output := &commandOutputWriter{logger: tp.logger}
+	cmd.Stdout = output
+	cmd.Stderr = output
+	err := cmd.Run()
+	output.Flush()
 	if err != nil {
-		return fmt.Errorf("%w while running command:\n%s\nOutput:\n%s", err, command, string(output))
+		return fmt.Errorf("%w while running command:\n%s\nOutput:\n%s", err, command, output.String())
 	}
 
 	return nil
+}
+
+type commandOutputWriter struct {
+	mu      sync.Mutex
+	output  bytes.Buffer
+	pending string
+	logger  *customLogger
+}
+
+func (writer *commandOutputWriter) Write(data []byte) (int, error) {
+	writer.mu.Lock()
+	defer writer.mu.Unlock()
+
+	_, _ = writer.output.Write(data)
+	text := writer.pending + strings.ReplaceAll(string(data), "\r", "\n")
+	parts := strings.Split(text, "\n")
+	writer.pending = parts[len(parts)-1]
+	for _, line := range parts[:len(parts)-1] {
+		writer.logLine(line)
+	}
+	return len(data), nil
+}
+
+func (writer *commandOutputWriter) Flush() {
+	writer.mu.Lock()
+	defer writer.mu.Unlock()
+	writer.logLine(writer.pending)
+	writer.pending = ""
+}
+
+func (writer *commandOutputWriter) String() string {
+	writer.mu.Lock()
+	defer writer.mu.Unlock()
+	return writer.output.String()
+}
+
+func (writer *commandOutputWriter) logLine(line string) {
+	if writer.logger != nil && strings.TrimSpace(line) != "" {
+		writer.logger.Printf("%s", line)
+	}
 }
 
 func (tp *TaskProcessor) processResults() error {

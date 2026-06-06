@@ -64,6 +64,8 @@ func (fw *FileWatcher) processFile(originalFilePath string) {
 
 	if !fw.shouldOptimizeFile(originalFilePath) {
 		if fw.uploadToImmich(originalFilePath) {
+			size := fileSize(originalFilePath)
+			fw.recordProcessed(filepath.Base(originalFilePath), size, size)
 			fw.cleanupOriginalFile(originalFilePath)
 		}
 		return
@@ -159,13 +161,22 @@ func (fw *FileWatcher) uploadProcessedFile(originalFilePath string, tp *TaskProc
 	if processedFilename == "" {
 		processedFilename = filepath.Base(originalFilePath)
 	}
-	return fw.uploadToImmichWithFilename(processedFilePath, processedFilename)
+	if !fw.uploadToImmichWithFilename(processedFilePath, processedFilename) {
+		return false
+	}
+	fw.recordProcessed(processedFilename, tp.OriginalSize, tp.ProcessedSize)
+	return true
 }
 
 // uploadOriginalFile uploads the original file without optimization
 func (fw *FileWatcher) uploadOriginalFile(filePath string) bool {
 	fw.logger.Printf("Original file uploaded (no optimization achieved)")
-	return fw.uploadToImmich(filePath)
+	if !fw.uploadToImmich(filePath) {
+		return false
+	}
+	size := fileSize(filePath)
+	fw.recordProcessed(filepath.Base(filePath), size, size)
+	return true
 }
 
 // cleanupOriginalFile removes the original file after successful processing
@@ -173,4 +184,21 @@ func (fw *FileWatcher) cleanupOriginalFile(filePath string) {
 	if err := os.Remove(filePath); err != nil {
 		fw.logger.Printf("Error removing file %s after upload: %v", filePath, err)
 	}
+}
+
+func (fw *FileWatcher) recordProcessed(filename string, originalBytes, uploadedBytes int64) {
+	if fw.statsStore == nil {
+		return
+	}
+	if err := fw.statsStore.Record(fw.profile.Name, filename, originalBytes, uploadedBytes); err != nil {
+		fw.logger.Printf("Error recording statistics for %s: %v", filename, err)
+	}
+}
+
+func fileSize(filePath string) int64 {
+	info, err := os.Stat(filePath)
+	if err != nil {
+		return 0
+	}
+	return info.Size()
 }

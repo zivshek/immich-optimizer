@@ -32,6 +32,9 @@ for server-side processing **before** assets are uploaded to Immich.
   and ignores hidden files/directories such as `.trashed-*`.
 - **Fork publishing:** Multi-architecture images are published to
   `ghcr.io/zivshek/immich-optimizer`.
+- **Dashboard and history:** Provides an embedded dashboard with live logs,
+  processed counts, size totals, space savings, reduction percentage, and
+  SQLite-backed upload history.
 
 When using FolderSync, configure it not to resync unchanged source files after
 the optimizer removes a successfully uploaded landing-zone file. Optimized
@@ -97,10 +100,22 @@ services:
     volumes:
       - /path/to/watch:/watch
       - /path/to/undone:/undone
+      - ./optimizer-data:/data
       # Optional: Custom configuration
       - ./custom-config:/etc/immich-optimizer/config
+    ports:
+      - "8098:8098"
     restart: unless-stopped
 ```
+
+Open `http://your-server:8098` to view the dashboard. Persist `/data` so
+statistics survive container recreation. The dashboard records only successful
+Immich uploads; failed/current jobs remain visible in the live log.
+
+The dashboard does not currently provide authentication. Keep port `8098` on a
+trusted network or place it behind an authenticated reverse proxy. When using a
+custom Compose `user: "UID:GID"`, ensure that UID/GID can write to the host
+directory mounted at `/data`.
 
 ### Multi-user profiles
 
@@ -230,6 +245,8 @@ RUN set -eux; \
 | `IUO_PROFILES` | Comma-separated profile names configured through environment variables | - |
 | `IUO_PROFILES_CONFIG` | Inline YAML profile list for Docker Compose and Dockge | - |
 | `IUO_PROFILES_FILE` | Path to multi-user profiles configuration; enables profile mode | - |
+| `IUO_DASHBOARD_ADDRESS` | Dashboard HTTP listen address | `:8098` |
+| `IUO_STATS_DATABASE` | SQLite statistics database path | `/data/immich-optimizer.db` |
 
 ### Command Line Options
 
@@ -242,6 +259,8 @@ Options:
   -watch_dir string      Directory to watch (default "/watch")
   -undone_dir string     Directory for failed files (default "/undone")
   -tasks_file string     Tasks configuration file (default "tasks.yaml")
+  -dashboard_address string Dashboard HTTP listen address (default ":8098")
+  -stats_database string SQLite statistics database path (default "/data/immich-optimizer.db")
   -profiles_config string Inline YAML multi-user profiles configuration
   -profiles_file string  Multi-user profiles configuration file
   -version               Show version information
