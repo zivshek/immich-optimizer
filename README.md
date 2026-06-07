@@ -205,21 +205,29 @@ docker exec immich-optimizer ffmpeg -hide_banner -f lavfi \
   -i color=size=1280x720:rate=30 -t 1 -c:v hevc_nvenc -f null -
 ```
 
-For more image savings while preserving most visible quality, use the balanced
-JPEG XL profile:
+Three balanced NVIDIA/FFmpeg profiles are bundled for different image
+compatibility and compression goals:
 
 ```yaml
+# JPEG XL: strongest JPEG recompression, but limited support after download
 IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/balanced-jxl-nvidia-ffmpeg/tasks.yaml
+
+# Standard JPEG: broadest compatibility
+IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/balanced-caesium-nvidia-ffmpeg/tasks.yaml
+
+# AVIF: stronger compression with wider support than JPEG XL
+IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/balanced-avif-nvidia-ffmpeg/tasks.yaml
 ```
 
-It encodes JPEG photos using JPEG XL distance `1.0`, the codec's visually
-near-lossless region, and explicitly restores and validates photo metadata.
-Unlike reversible `--lossless_jpeg=1`, this cannot reconstruct the original
-JPEG bit-for-bit. PNG and other supported non-JPEG images remain lossless, and
-the video settings are unchanged.
+The JPEG XL profile uses distance `1.0`; the Caesium profile keeps JPEG/JPG as
+standard JPEG at quality `85`; and the AVIF profile converts JPEG, PNG, and
+WebP to AVIF at ImageMagick quality `65`. All three restore and validate photo
+metadata after conversion and use the same orientation-preserving NVIDIA video
+task. These image conversions are lossy and cannot reconstruct the original
+files bit-for-bit.
 
-The container includes ExifTool's Brotli Perl module so metadata embedded in
-JPEG XL files can be read back and validated.
+The AVIF profile uses ImageMagick with Debian's `libheif-plugin-aomenc` AV1
+still-image encoder, which is included in the published container.
 
 ### 🚀 Custom Image (GPU Acceleration, FFMPEG, etc.)
 

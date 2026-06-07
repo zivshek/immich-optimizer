@@ -1,0 +1,61 @@
+tasks:
+  - name: avif-balanced
+    command: >
+      sh ./transcode-image.sh
+      "{{.src_folder}}/{{.name}}.{{.extension}}"
+      "{{.dst_folder}}/{{.name}}.avif"
+    extensions:
+      - jpeg
+      - jpg
+      - png
+      - webp
+
+  - name: passthrough-images
+    command: ""
+    extensions:
+      - avif
+      - bmp
+      - dng
+      - exr
+      - gif
+      - heic
+      - heif
+      - insp
+      - jxl
+      - pam
+      - pfm
+      - pgm
+      - pgx
+      - pnm
+      - ppm
+      - psd
+      - raw
+      - rw2
+      - svg
+      - tif
+      - tiff
+
+  - name: ffmpeg-nvidia-hevc-preserve-orientation
+    command: >
+      sh ./transcode-video.sh
+      "{{.src_folder}}/{{.name}}.{{.extension}}"
+      "{{.dst_folder}}/{{.name}}.mp4"
+    extensions:
+      - 3gp
+      - 3gpp
+      - avi
+      - flv
+      - insv
+      - m2t
+      - m2ts
+      - m4v
+      - mkv
+      - mov
+      - mp4
+      - mpe
+      - mpeg
+      - mpg
+      - mts
+      - ts
+      - webm
+      - wmv

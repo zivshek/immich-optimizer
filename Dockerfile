@@ -55,6 +55,7 @@ RUN groupadd -r appuser && \
     jq \
     libc6 \
     libio-compress-brotli-perl \
+    libheif-plugin-aomenc \
     libjxl-tools \
     libgif7 \
     libtcmalloc-minimal4 \
