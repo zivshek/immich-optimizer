@@ -15,10 +15,10 @@ export AB_AV1_TEMP_DIR="$tmpdir"
 export XDG_CACHE_HOME="${tmpdir}/cache"
 mkdir -p "$XDG_CACHE_HOME"
 
-dimensions=$(ffprobe -v error -select_streams v:0 \
-  -show_entries stream=width,height -of csv=s=x:p=0 "$src")
-width=${dimensions%x*}
-height=${dimensions#*x}
+probe=$(ffprobe -v error -select_streams v:0 \
+  -show_entries stream=width,height -of json "$src")
+width=$(printf '%s' "$probe" | jq -r '.streams[0].width')
+height=$(printf '%s' "$probe" | jq -r '.streams[0].height')
 vmaf_model=vmaf_v0.6.1.json
 if [ "$width" -gt 2560 ] && [ "$height" -gt 1440 ]; then
   vmaf_model=vmaf_4k_v0.6.1.json
