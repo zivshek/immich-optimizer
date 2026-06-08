@@ -61,6 +61,7 @@ RUN apt-get update && \
     libdav1d-dev \
     libopus-dev \
     libsvtav1enc-dev \
+    libx265-dev \
     meson \
     nasm \
     ninja-build \
@@ -96,12 +97,14 @@ RUN set -eux; \
       --enable-libopus \
       --enable-libsvtav1 \
       --enable-libvmaf \
+      --enable-libx265 \
       --disable-debug \
       --disable-doc; \
     make -j"$(nproc)"; \
     make install; \
     LD_LIBRARY_PATH=/opt/ab-av1/lib /opt/ab-av1/bin/ffmpeg -hide_banner -filters | grep libvmaf; \
-    LD_LIBRARY_PATH=/opt/ab-av1/lib /opt/ab-av1/bin/ffmpeg -hide_banner -encoders | grep libsvtav1
+    LD_LIBRARY_PATH=/opt/ab-av1/lib /opt/ab-av1/bin/ffmpeg -hide_banner -encoders | grep libsvtav1; \
+    LD_LIBRARY_PATH=/opt/ab-av1/lib /opt/ab-av1/bin/ffmpeg -hide_banner -encoders | grep libx265
 
 FROM --platform=$TARGETPLATFORM ubuntu:24.04 AS oavif-builder
 
@@ -242,7 +245,8 @@ RUN groupadd -r appuser && \
     vainfo \
     libva2 \
     libva-drm2 \
-    mesa-va-drivers && \
+    mesa-va-drivers \
+    webp && \
     rm -rf /var/lib/apt/lists/* && \
     mkdir -p /etc/immich-optimizer/config /etc/immich-optimizer/bundled-configs /watch /undone /data && \
     chown -R appuser:appuser /etc/immich-optimizer /watch /undone /data
@@ -257,7 +261,8 @@ ENV LD_LIBRARY_PATH=/build/lib:/opt/ab-av1/lib
 RUN oavif --version && \
     ab-av1 --version && \
     /opt/ab-av1/bin/ffmpeg -hide_banner -filters | grep libvmaf && \
-    /opt/ab-av1/bin/ffmpeg -hide_banner -encoders | grep libsvtav1
+    /opt/ab-av1/bin/ffmpeg -hide_banner -encoders | grep libsvtav1 && \
+    /opt/ab-av1/bin/ffmpeg -hide_banner -encoders | grep libx265
 COPY --chown=appuser:appuser config/lossless /etc/immich-optimizer/config
 COPY --chown=appuser:appuser config /etc/immich-optimizer/bundled-configs
 

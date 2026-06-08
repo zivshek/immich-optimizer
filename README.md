@@ -220,6 +220,9 @@ IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/balanced-avif-nvidia-ffmpe
 
 # Perceptual AV1: oavif SSIMULACRA2 images and ab-av1 VMAF videos
 IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/perceptual-av1/tasks.yaml
+
+# Perceptual compatibility: WebP images and H.265/HEVC VMAF videos
+IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/perceptual-hevc-webp/tasks.yaml
 ```
 
 The JPEG XL profile uses distance `1.0`; the Caesium profile keeps JPEG/JPG as
@@ -237,6 +240,11 @@ The perceptual AV1 profile uses `oavif --score-tgt 85` for images and
 for an AV1 encode that meets a perceptual quality target instead of applying
 one fixed quality number to every file. Videos are remuxed to MP4 with the
 original audio and metadata after the VMAF-guided video stream is encoded.
+
+The perceptual compatibility profile converts JPEG/PNG images to WebP quality
+`85` and uses `ab-av1` with `libx265`, VMAF `95`, 8-bit `yuv420p`, and `hvc1`
+MP4 output for videos. It generally saves less space than AV1, but playback
+and sharing compatibility is much better across older clients.
 
 ### 🚀 Custom Image (GPU Acceleration, FFMPEG, etc.)
 
