@@ -82,7 +82,10 @@ RUN set -eux; \
       -Denable_tests=false \
       -Denable_docs=false; \
     meson compile -C vmaf/libvmaf/build; \
-    meson install -C vmaf/libvmaf/build
+    meson install -C vmaf/libvmaf/build; \
+    mkdir -p /opt/ab-av1/share/vmaf/model; \
+    cp vmaf/model/*.json /opt/ab-av1/share/vmaf/model/; \
+    test -f /opt/ab-av1/share/vmaf/model/vmaf_4k_v0.6.1.json
 
 RUN set -eux; \
     curl -fsSL -o ffmpeg.tar.xz "https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.xz"; \

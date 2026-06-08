@@ -12,6 +12,17 @@ trap 'rm -rf "$tmpdir" "$video_only"' EXIT
 
 export PATH="/opt/ab-av1/bin:${PATH}"
 export AB_AV1_TEMP_DIR="$tmpdir"
+export XDG_CACHE_HOME="${tmpdir}/cache"
+mkdir -p "$XDG_CACHE_HOME"
+
+dimensions=$(ffprobe -v error -select_streams v:0 \
+  -show_entries stream=width,height -of csv=s=x:p=0 "$src")
+width=${dimensions%x*}
+height=${dimensions#*x}
+vmaf_model=vmaf_v0.6.1.json
+if [ "$width" -gt 2560 ] && [ "$height" -gt 1440 ]; then
+  vmaf_model=vmaf_4k_v0.6.1.json
+fi
 
 ab-av1 auto-encode \
   --input "$src" \
@@ -25,6 +36,7 @@ ab-av1 auto-encode \
   --min-samples 3 \
   --sample-every 8m \
   --sample-duration 12s \
+  --vmaf "model=path=/opt/ab-av1/share/vmaf/model/${vmaf_model}" \
   --enc-input noautorotate
 
 ffmpeg -hide_banner -y \
