@@ -217,6 +217,9 @@ IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/balanced-caesium-nvidia-ff
 
 # AVIF: stronger compression with wider support than JPEG XL
 IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/balanced-avif-nvidia-ffmpeg/tasks.yaml
+
+# Perceptual AV1: oavif SSIMULACRA2 images and ab-av1 VMAF videos
+IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/perceptual-av1/tasks.yaml
 ```
 
 The JPEG XL profile uses distance `1.0`; the Caesium profile keeps JPEG/JPG as
@@ -228,6 +231,12 @@ files bit-for-bit.
 
 The AVIF profile uses ImageMagick with Debian's `libheif-plugin-aomenc` AV1
 still-image encoder, which is included in the published container.
+
+The perceptual AV1 profile uses `oavif --score-tgt 85` for images and
+`ab-av1 auto-encode --min-vmaf 95` for videos. It is CPU-heavy, but it searches
+for an AV1 encode that meets a perceptual quality target instead of applying
+one fixed quality number to every file. Videos are remuxed to MP4 with the
+original audio and metadata after the VMAF-guided video stream is encoded.
 
 ### 🚀 Custom Image (GPU Acceleration, FFMPEG, etc.)
 
