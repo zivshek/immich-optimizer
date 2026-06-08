@@ -51,6 +51,7 @@ FROM --platform=$TARGETPLATFORM debian:trixie-slim AS ab-ffmpeg-builder
 
 ARG FFMPEG_VERSION=7.1.1
 ARG VMAF_VERSION=v3.0.0
+ARG NV_CODEC_HEADERS_VERSION=n12.2.72.0
 
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
@@ -72,6 +73,10 @@ RUN apt-get update && \
     mkdir -p /build /opt/ab-av1
 
 WORKDIR /build
+RUN set -eux; \
+    git clone --depth 1 --branch "${NV_CODEC_HEADERS_VERSION}" https://github.com/FFmpeg/nv-codec-headers.git; \
+    make -C nv-codec-headers PREFIX=/opt/ab-av1 install
+
 RUN set -eux; \
     git clone --depth 1 --branch "${VMAF_VERSION}" https://github.com/Netflix/vmaf.git; \
     meson setup vmaf/libvmaf/build vmaf/libvmaf \
@@ -101,13 +106,15 @@ RUN set -eux; \
       --enable-libsvtav1 \
       --enable-libvmaf \
       --enable-libx265 \
+      --enable-nvenc \
       --disable-debug \
       --disable-doc; \
     make -j"$(nproc)"; \
     make install; \
     LD_LIBRARY_PATH=/opt/ab-av1/lib /opt/ab-av1/bin/ffmpeg -hide_banner -filters | grep libvmaf; \
     LD_LIBRARY_PATH=/opt/ab-av1/lib /opt/ab-av1/bin/ffmpeg -hide_banner -encoders | grep libsvtav1; \
-    LD_LIBRARY_PATH=/opt/ab-av1/lib /opt/ab-av1/bin/ffmpeg -hide_banner -encoders | grep libx265
+    LD_LIBRARY_PATH=/opt/ab-av1/lib /opt/ab-av1/bin/ffmpeg -hide_banner -encoders | grep libx265; \
+    LD_LIBRARY_PATH=/opt/ab-av1/lib /opt/ab-av1/bin/ffmpeg -hide_banner -encoders | grep hevc_nvenc
 
 FROM --platform=$TARGETPLATFORM ubuntu:24.04 AS oavif-builder
 
@@ -272,7 +279,8 @@ RUN oavif --version && \
     ab-av1 --version && \
     /opt/ab-av1/bin/ffmpeg -hide_banner -filters | grep libvmaf && \
     /opt/ab-av1/bin/ffmpeg -hide_banner -encoders | grep libsvtav1 && \
-    /opt/ab-av1/bin/ffmpeg -hide_banner -encoders | grep libx265
+    /opt/ab-av1/bin/ffmpeg -hide_banner -encoders | grep libx265 && \
+    /opt/ab-av1/bin/ffmpeg -hide_banner -encoders | grep hevc_nvenc
 COPY --chown=appuser:appuser config/lossless /etc/immich-optimizer/config
 COPY --chown=appuser:appuser config /etc/immich-optimizer/bundled-configs
 

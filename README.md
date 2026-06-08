@@ -223,6 +223,9 @@ IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/perceptual-av1/tasks.yaml
 
 # Perceptual compatibility: WebP images and H.265/HEVC VMAF videos
 IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/perceptual-hevc-webp/tasks.yaml
+
+# Perceptual compatibility with NVIDIA GPU HEVC encoding
+IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/perceptual-hevc-webp-nvidia/tasks.yaml
 ```
 
 The JPEG XL profile uses distance `1.0`; the Caesium profile keeps JPEG/JPG as
@@ -245,6 +248,10 @@ The perceptual compatibility profile converts JPEG/PNG images to WebP quality
 `85` and uses `ab-av1` with `libx265`, VMAF `95`, 8-bit `yuv420p`, and `hvc1`
 MP4 output for videos. It generally saves less space than AV1, but playback
 and sharing compatibility is much better across older clients.
+
+The NVIDIA variant uses the same WebP and VMAF targets but replaces CPU
+`libx265` with `hevc_nvenc`. It is much faster, though files may be larger than
+the CPU profile at the same VMAF target. VMAF analysis still runs on the CPU.
 
 ### 🚀 Custom Image (GPU Acceleration, FFMPEG, etc.)
 
