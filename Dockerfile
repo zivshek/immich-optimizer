@@ -215,10 +215,14 @@ RUN set -eux; \
 
 RUN set -eux; \
     git clone --depth 1 --branch "${OAVIF_VERSION}" https://github.com/gianni-rosato/oavif.git /build/oavif; \
+    git clone --depth 1 --branch "0.1.1" https://github.com/gianni-rosato/fssimu2.git /build/fssimu2; \
     cd /build/oavif; \
     sed -i '/linkSystemLibrary("avif"/a\    bin.root_module.linkSystemLibrary("heif", .{ .preferred_link_mode = .static });\n    bin.root_module.linkSystemLibrary("aom", .{ .preferred_link_mode = .static });' build.zig; \
+    sed -i '/\.url = /c\            .path = "../fssimu2",' build.zig.zon; \
+    sed -i '/\.hash = /d' build.zig.zon; \
     grep 'linkSystemLibrary("aom"' build.zig; \
     grep 'linkSystemLibrary("heif"' build.zig; \
+    grep '\.path = "../fssimu2"' build.zig.zon; \
     zig build --release=fast --search-prefix ${INSTALL_PREFIX}; \
     install -m 755 zig-out/bin/oavif /usr/local/bin/oavif; \
     /usr/local/bin/oavif --version
