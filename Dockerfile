@@ -60,7 +60,7 @@ RUN apt-get update && \
     git \
     libdav1d-dev \
     libopus-dev \
-    libsvtav1-dev \
+    libsvtav1enc-dev \
     meson \
     nasm \
     ninja-build \
@@ -235,6 +235,7 @@ RUN groupadd -r appuser && \
     libheif-plugin-aomenc \
     libjxl-tools \
     libgif7 \
+    libsvtav1enc2 \
     libtcmalloc-minimal4 \
     libvips-tools \
     tzdata \
