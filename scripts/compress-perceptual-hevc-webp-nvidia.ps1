@@ -156,7 +156,7 @@ function Get-VmafArguments {
     return @("--vmaf", "model=path=$modelPath")
 }
 
-function Find-NvencCq {
+function Find-NvencQp {
     param(
         [System.IO.FileInfo]$Source,
         [string[]]$VmafArguments
@@ -164,12 +164,12 @@ function Find-NvencCq {
 
     $low = 1
     $high = 40
-    $bestCq = $null
-    $fallbackCq = $null
+    $bestQp = $null
+    $fallbackQp = $null
     $fallbackScore = -1.0
     while ($low -le $high) {
-        $cq = [Math]::Floor(($low + $high) / 2)
-        Write-Host "Testing NVENC CQ $cq against VMAF $MinVmaf"
+        $qp = [Math]::Floor(($low + $high) / 2)
+        Write-Host "Testing NVENC QP $qp against VMAF $MinVmaf"
         $arguments = @(
             "sample-encode",
             "--input", $Source.FullName,
@@ -180,8 +180,8 @@ function Find-NvencCq {
             "--min-samples", "3",
             "--sample-every", "8m",
             "--sample-duration", "12s",
-            "--enc", "rc=vbr",
-            "--enc", "b:v=0",
+            "--enc", "rc=constqp",
+            "--enc", "qp=$qp",
             "--enc", "spatial_aq=1",
             "--enc", "rc-lookahead=32",
             "--enc-input", "noautorotate"
@@ -193,27 +193,27 @@ function Find-NvencCq {
         }
         $scoreMatches = [regex]::Matches(($sampleOutput -join "`n"), 'VMAF\s+([0-9]+(?:\.[0-9]+)?)')
         if ($scoreMatches.Count -eq 0) {
-            throw "Unable to read VMAF score for NVENC CQ $cq"
+            throw "Unable to read VMAF score for NVENC QP $qp"
         }
         $score = [double]$scoreMatches[$scoreMatches.Count - 1].Groups[1].Value
-        if ($score -ge $fallbackScore) {
-            $fallbackCq = $cq
+        if ($score -gt $fallbackScore) {
+            $fallbackQp = $qp
             $fallbackScore = $score
         }
         if ($score -ge $MinVmaf) {
-            $bestCq = $cq
-            $low = $cq + 1
+            $bestQp = $qp
+            $low = $qp + 1
         }
         else {
-            $high = $cq - 1
+            $high = $qp - 1
         }
     }
 
-    if ($null -eq $bestCq) {
-        $bestCq = $fallbackCq
-        Write-Warning "NVENC could not meet VMAF $MinVmaf; using best measured CQ $bestCq at VMAF $fallbackScore"
+    if ($null -eq $bestQp) {
+        $bestQp = $fallbackQp
+        Write-Warning "NVENC could not meet VMAF $MinVmaf; using best measured QP $bestQp at VMAF $fallbackScore"
     }
-    return $bestCq
+    return $bestQp
 }
 
 function Convert-Video {
@@ -237,8 +237,8 @@ function Convert-Video {
 
     try {
         $vmafArguments = Get-VmafArguments $Source
-        $cq = Find-NvencCq $Source $vmafArguments
-        Write-Host "Selected NVENC CQ $cq"
+        $qp = Find-NvencQp $Source $vmafArguments
+        Write-Host "Selected NVENC QP $qp"
 
         Invoke-Native $Ffmpeg @(
             "-hide_banner", "-y", "-noautorotate",
@@ -248,9 +248,8 @@ function Convert-Video {
             "-c:v", "hevc_nvenc",
             "-preset", "p7",
             "-pix_fmt", "yuv420p",
-            "-rc", "vbr",
-            "-b:v", "0",
-            "-cq", "$cq",
+            "-rc", "constqp",
+            "-qp", "$qp",
             "-spatial_aq", "1",
             "-rc-lookahead", "32",
             $videoOnly
