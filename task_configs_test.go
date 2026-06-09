@@ -143,7 +143,7 @@ func TestPerceptualImagesTargetSsimulacra2Score90(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{"target_score=90", "fssimu2", "selected WebP quality"} {
+	for _, expected := range []string{"target_score=90", "fssimu2", "2>&1", "unable to read SSIMULACRA2 score", "selected WebP quality"} {
 		if !strings.Contains(string(webpScript), expected) {
 			t.Fatalf("perceptual WebP script is missing %q", expected)
 		}

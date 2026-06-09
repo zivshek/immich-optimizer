@@ -16,7 +16,11 @@ trap 'rm -f "$candidate"' EXIT
 while [ "$low" -le "$high" ]; do
   quality=$(( (low + high) / 2 ))
   cwebp -quiet -q "$quality" -m 6 "$src" -o "$candidate"
-  score=$(fssimu2 "$src" "$candidate")
+  score=$(fssimu2 "$src" "$candidate" 2>&1 | tail -n 1 | tr -d '[:space:]')
+  if ! printf '%s\n' "$score" | grep -Eq '^-?[0-9]+([.][0-9]+)?$'; then
+    echo "unable to read SSIMULACRA2 score from fssimu2 output: ${score}" >&2
+    exit 1
+  fi
   echo "WebP quality ${quality}: SSIMULACRA2 ${score}"
 
   if awk "BEGIN { exit !(${score} >= ${target_score}) }"; then
@@ -31,7 +35,11 @@ done
 if [ -z "$best_quality" ]; then
   best_quality=100
   cwebp -quiet -q "$best_quality" -m 6 "$src" -o "$candidate"
-  best_score=$(fssimu2 "$src" "$candidate")
+  best_score=$(fssimu2 "$src" "$candidate" 2>&1 | tail -n 1 | tr -d '[:space:]')
+  if ! printf '%s\n' "$best_score" | grep -Eq '^-?[0-9]+([.][0-9]+)?$'; then
+    echo "unable to read SSIMULACRA2 score from fssimu2 output: ${best_score}" >&2
+    exit 1
+  fi
   echo "warning: WebP could not meet SSIMULACRA2 ${target_score}; using quality ${best_quality} at score ${best_score}" >&2
 fi
 
