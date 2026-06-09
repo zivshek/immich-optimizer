@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"path/filepath"
 	"testing"
 )
@@ -16,6 +17,9 @@ func TestStatsStoreSummaryAndRecent(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := store.Record("bob", "video.mp4", "3840x2160", 3000, 2400); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RecordFailure("bob", "failed.mp4", "2160x3840", 5000, fmt.Errorf("projected savings below 20%%")); err != nil {
 		t.Fatal(err)
 	}
 
@@ -34,12 +38,43 @@ func TestStatsStoreSummaryAndRecent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(recent) != 2 || recent[0].Filename != "video.mp4" || recent[0].Resolution != "3840x2160" {
+	if len(recent) != 3 || recent[0].Filename != "failed.mp4" || recent[0].Success || recent[0].Resolution != "2160x3840" {
 		t.Fatalf("unexpected recent assets: %+v", recent)
 	}
 }
 
-func TestStatsStoreMigratesResolutionColumn(t *testing.T) {
+func TestStatsStorePaginationAndDelete(t *testing.T) {
+	store, err := NewStatsStore(filepath.Join(t.TempDir(), "stats.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	for i := 0; i < 12; i++ {
+		if err := store.Record("alice", fmt.Sprintf("photo-%02d.jpg", i), "", 1000, 900); err != nil {
+			t.Fatal(err)
+		}
+	}
+	page, err := store.RecentPage(2, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Jobs) != 2 || page.Total != 12 || page.TotalPages != 2 {
+		t.Fatalf("unexpected page: %+v", page)
+	}
+	if err := store.Delete(page.Jobs[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	page, err = store.RecentPage(2, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page.Total != 11 || len(page.Jobs) != 1 {
+		t.Fatalf("unexpected page after delete: %+v", page)
+	}
+}
+
+func TestStatsStoreMigratesJobColumns(t *testing.T) {
 	databasePath := filepath.Join(t.TempDir(), "stats.db")
 	store, err := NewStatsStore(databasePath)
 	if err != nil {

@@ -119,7 +119,9 @@ services:
 
 Open `http://your-server:8098` to view the dashboard. Persist `/data` so
 statistics survive container recreation. The dashboard records only successful
-Immich uploads; failed/current jobs remain visible in the live log.
+Immich uploads in its totals. Recent Jobs shows successful and failed attempts
+in pages of 10; failed rows are red and do not affect statistics. Individual
+history rows can be deleted from the dashboard.
 
 The dashboard does not currently provide authentication. Keep port `8098` on a
 trusted network or place it behind an authenticated reverse proxy. When using a
@@ -269,7 +271,9 @@ The NVIDIA variant uses the same WebP and VMAF targets but replaces CPU
 the CPU profile at the same VMAF target. VMAF analysis still runs on the CPU.
 It searches NVENC constant-QP values for VMAF `95`; when a difficult source
 cannot reach that target even at the highest-quality tested QP, it logs a
-warning and uses the best measured result instead of failing the upload.
+warning and uses the best measured result. If the selected result is projected
+to save less than `20%`, the task fails before the full encode so the file can
+be retried manually with a different profile.
 
 ### Windows folder compressor
 

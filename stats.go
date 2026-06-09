@@ -27,11 +27,21 @@ type ProcessedAsset struct {
 	Profile       string    `json:"profile"`
 	Filename      string    `json:"filename"`
 	Resolution    string    `json:"resolution"`
+	Success       bool      `json:"success"`
+	Error         string    `json:"error,omitempty"`
 	OriginalBytes int64     `json:"original_bytes"`
 	UploadedBytes int64     `json:"uploaded_bytes"`
 	SavedBytes    int64     `json:"saved_bytes"`
 	Reduction     float64   `json:"reduction_percent"`
 	ProcessedAt   time.Time `json:"processed_at"`
+}
+
+type RecentJobs struct {
+	Jobs       []ProcessedAsset `json:"jobs"`
+	Page       int              `json:"page"`
+	PageSize   int              `json:"page_size"`
+	Total      int64            `json:"total"`
+	TotalPages int              `json:"total_pages"`
 }
 
 func NewStatsStore(databasePath string) (*StatsStore, error) {
@@ -82,7 +92,19 @@ func (store *StatsStore) init() error {
 	if err != nil {
 		return fmt.Errorf("initialize statistics database: %w", err)
 	}
-	return store.ensureColumn("processed_assets", "resolution", "TEXT NOT NULL DEFAULT ''")
+	for _, column := range []struct {
+		name       string
+		definition string
+	}{
+		{name: "resolution", definition: "TEXT NOT NULL DEFAULT ''"},
+		{name: "success", definition: "INTEGER NOT NULL DEFAULT 1"},
+		{name: "error", definition: "TEXT NOT NULL DEFAULT ''"},
+	} {
+		if err := store.ensureColumn("processed_assets", column.name, column.definition); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (store *StatsStore) Close() error {
@@ -123,11 +145,26 @@ func (store *StatsStore) ensureColumn(table, column, definition string) error {
 
 func (store *StatsStore) Record(profile, filename, resolution string, originalBytes, uploadedBytes int64) error {
 	_, err := store.db.Exec(
-		`INSERT INTO processed_assets (profile, filename, resolution, original_bytes, uploaded_bytes) VALUES (?, ?, ?, ?, ?)`,
+		`INSERT INTO processed_assets (profile, filename, resolution, success, error, original_bytes, uploaded_bytes) VALUES (?, ?, ?, 1, '', ?, ?)`,
 		profile, filename, resolution, originalBytes, uploadedBytes,
 	)
 	if err != nil {
 		return fmt.Errorf("record processed asset: %w", err)
+	}
+	return nil
+}
+
+func (store *StatsStore) RecordFailure(profile, filename, resolution string, originalBytes int64, jobError error) error {
+	errorMessage := ""
+	if jobError != nil {
+		errorMessage = jobError.Error()
+	}
+	_, err := store.db.Exec(
+		`INSERT INTO processed_assets (profile, filename, resolution, success, error, original_bytes, uploaded_bytes) VALUES (?, ?, ?, 0, ?, ?, 0)`,
+		profile, filename, resolution, errorMessage, originalBytes,
+	)
+	if err != nil {
+		return fmt.Errorf("record failed job: %w", err)
 	}
 	return nil
 }
@@ -140,6 +177,7 @@ func (store *StatsStore) Summary() (DashboardStats, error) {
 			COALESCE(SUM(original_bytes), 0),
 			COALESCE(SUM(uploaded_bytes), 0)
 		FROM processed_assets
+		WHERE success = 1
 	`).Scan(&stats.ProcessedCount, &stats.OriginalBytes, &stats.UploadedBytes)
 	if err != nil {
 		return stats, fmt.Errorf("query statistics summary: %w", err)
@@ -153,18 +191,44 @@ func (store *StatsStore) Summary() (DashboardStats, error) {
 }
 
 func (store *StatsStore) Recent(limit int) ([]ProcessedAsset, error) {
+	recent, err := store.RecentPage(1, limit)
+	return recent.Jobs, err
+}
+
+func (store *StatsStore) RecentPage(page, pageSize int) (RecentJobs, error) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 10
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+
+	var recent RecentJobs
+	recent.Page = page
+	recent.PageSize = pageSize
+	if err := store.db.QueryRow(`SELECT COUNT(*) FROM processed_assets`).Scan(&recent.Total); err != nil {
+		return recent, fmt.Errorf("count recent jobs: %w", err)
+	}
+	recent.TotalPages = int((recent.Total + int64(pageSize) - 1) / int64(pageSize))
+	if recent.TotalPages == 0 {
+		recent.TotalPages = 1
+	}
+
 	rows, err := store.db.Query(`
-		SELECT id, profile, filename, resolution, original_bytes, uploaded_bytes, processed_at
+		SELECT id, profile, filename, resolution, success, error, original_bytes, uploaded_bytes, processed_at
 		FROM processed_assets
 		ORDER BY processed_at DESC, id DESC
-		LIMIT ?
-	`, limit)
+		LIMIT ? OFFSET ?
+	`, pageSize, (page-1)*pageSize)
 	if err != nil {
-		return nil, fmt.Errorf("query recent processed assets: %w", err)
+		return recent, fmt.Errorf("query recent jobs: %w", err)
 	}
 	defer rows.Close()
 
-	assets := make([]ProcessedAsset, 0, limit)
+	recent.Jobs = make([]ProcessedAsset, 0, pageSize)
 	for rows.Next() {
 		var asset ProcessedAsset
 		if err := rows.Scan(
@@ -172,17 +236,36 @@ func (store *StatsStore) Recent(limit int) ([]ProcessedAsset, error) {
 			&asset.Profile,
 			&asset.Filename,
 			&asset.Resolution,
+			&asset.Success,
+			&asset.Error,
 			&asset.OriginalBytes,
 			&asset.UploadedBytes,
 			&asset.ProcessedAt,
 		); err != nil {
-			return nil, fmt.Errorf("scan recent processed asset: %w", err)
+			return recent, fmt.Errorf("scan recent job: %w", err)
 		}
-		asset.SavedBytes = asset.OriginalBytes - asset.UploadedBytes
-		if asset.OriginalBytes > 0 {
+		if asset.Success {
+			asset.SavedBytes = asset.OriginalBytes - asset.UploadedBytes
+		}
+		if asset.Success && asset.OriginalBytes > 0 {
 			asset.Reduction = float64(asset.SavedBytes) / float64(asset.OriginalBytes) * 100
 		}
-		assets = append(assets, asset)
+		recent.Jobs = append(recent.Jobs, asset)
 	}
-	return assets, rows.Err()
+	return recent, rows.Err()
+}
+
+func (store *StatsStore) Delete(id int64) error {
+	result, err := store.db.Exec(`DELETE FROM processed_assets WHERE id = ?`, id)
+	if err != nil {
+		return fmt.Errorf("delete recent job: %w", err)
+	}
+	deleted, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("check deleted recent job: %w", err)
+	}
+	if deleted == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
 }

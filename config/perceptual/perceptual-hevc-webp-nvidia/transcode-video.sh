@@ -31,8 +31,10 @@ fi
 low=1
 high=40
 best_qp=
+best_percent=
 fallback_qp=
 fallback_score=-1
+fallback_percent=
 while [ "$low" -le "$high" ]; do
   qp=$(( (low + high) / 2 ))
   echo "testing NVENC QP ${qp} against VMAF ${min_vmaf}"
@@ -54,16 +56,20 @@ while [ "$low" -le "$high" ]; do
   printf '%s\n' "$sample_output"
   score=$(printf '%s\n' "$sample_output" |
     sed -n 's/.*VMAF \([0-9][0-9.]*\).*/\1/p' | tail -n 1)
-  if [ -z "$score" ]; then
-    echo "unable to read VMAF score for NVENC QP ${qp}" >&2
+  percent=$(printf '%s\n' "$sample_output" |
+    sed -n 's/.*predicted video stream size.*(\([0-9][0-9.]*\)%).*/\1/p' | tail -n 1)
+  if [ -z "$score" ] || [ -z "$percent" ]; then
+    echo "unable to read VMAF score or predicted size for NVENC QP ${qp}" >&2
     exit 1
   fi
   if awk "BEGIN { exit !(${score} > ${fallback_score}) }"; then
     fallback_qp=$qp
     fallback_score=$score
+    fallback_percent=$percent
   fi
   if awk "BEGIN { exit !(${score} >= ${min_vmaf}) }"; then
     best_qp=$qp
+    best_percent=$percent
     low=$((qp + 1))
   else
     high=$((qp - 1))
@@ -72,9 +78,14 @@ done
 
 if [ -z "$best_qp" ]; then
   best_qp=$fallback_qp
+  best_percent=$fallback_percent
   echo "warning: NVENC could not meet VMAF ${min_vmaf}; using best measured QP ${best_qp} at VMAF ${fallback_score}" >&2
 fi
 echo "selected NVENC QP ${best_qp}"
+if awk "BEGIN { exit !(${best_percent} > 80) }"; then
+  echo "projected output is ${best_percent}% of original; less than 20% savings, refusing encode" >&2
+  exit 1
+fi
 
 /opt/ab-av1/bin/ffmpeg -hide_banner -y \
   -noautorotate \

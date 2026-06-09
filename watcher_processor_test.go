@@ -35,6 +35,11 @@ func TestProcessFileDeletesOriginalOnlyAfterSuccessfulUpload(t *testing.T) {
 			}
 
 			logger := log.New(os.Stderr, "", 0)
+			statsStore, err := NewStatsStore(filepath.Join(t.TempDir(), "stats.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer statsStore.Close()
 			profile := &ProfileConfig{
 				Name:       "alice",
 				WatchDir:   watchDir,
@@ -48,16 +53,33 @@ func TestProcessFileDeletesOriginalOnlyAfterSuccessfulUpload(t *testing.T) {
 				config:       profile.Tasks,
 				logger:       logger,
 				profile:      profile,
+				statsStore:   statsStore,
 			}
 
 			watcher.processFile(filePath)
 
-			_, err := os.Stat(filePath)
+			_, err = os.Stat(filePath)
 			if test.wantExists && err != nil {
 				t.Fatalf("original should remain after failed upload: %v", err)
 			}
 			if !test.wantExists && !os.IsNotExist(err) {
 				t.Fatalf("original should be deleted after successful upload, stat error: %v", err)
+			}
+
+			stats, err := statsStore.Summary()
+			if err != nil {
+				t.Fatal(err)
+			}
+			recent, err := statsStore.Recent(10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if test.statusCode == http.StatusCreated {
+				if stats.ProcessedCount != 1 || len(recent) != 1 || !recent[0].Success {
+					t.Fatalf("unexpected successful job history: stats=%+v recent=%+v", stats, recent)
+				}
+			} else if stats.ProcessedCount != 0 || len(recent) != 1 || recent[0].Success {
+				t.Fatalf("unexpected failed job history: stats=%+v recent=%+v", stats, recent)
 			}
 		})
 	}

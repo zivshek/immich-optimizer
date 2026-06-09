@@ -165,8 +165,10 @@ function Find-NvencQp {
     $low = 1
     $high = 40
     $bestQp = $null
+    $bestPercent = $null
     $fallbackQp = $null
     $fallbackScore = -1.0
+    $fallbackPercent = $null
     while ($low -le $high) {
         $qp = [Math]::Floor(($low + $high) / 2)
         Write-Host "Testing NVENC QP $qp against VMAF $MinVmaf"
@@ -196,12 +198,19 @@ function Find-NvencQp {
             throw "Unable to read VMAF score for NVENC QP $qp"
         }
         $score = [double]$scoreMatches[$scoreMatches.Count - 1].Groups[1].Value
+        $percentMatches = [regex]::Matches(($sampleOutput -join "`n"), 'predicted video stream size.*\(([0-9]+(?:\.[0-9]+)?)%\)')
+        if ($percentMatches.Count -eq 0) {
+            throw "Unable to read predicted size for NVENC QP $qp"
+        }
+        $percent = [double]$percentMatches[$percentMatches.Count - 1].Groups[1].Value
         if ($score -gt $fallbackScore) {
             $fallbackQp = $qp
             $fallbackScore = $score
+            $fallbackPercent = $percent
         }
         if ($score -ge $MinVmaf) {
             $bestQp = $qp
+            $bestPercent = $percent
             $low = $qp + 1
         }
         else {
@@ -211,9 +220,10 @@ function Find-NvencQp {
 
     if ($null -eq $bestQp) {
         $bestQp = $fallbackQp
+        $bestPercent = $fallbackPercent
         Write-Warning "NVENC could not meet VMAF $MinVmaf; using best measured QP $bestQp at VMAF $fallbackScore"
     }
-    return $bestQp
+    return [pscustomobject]@{ Qp = $bestQp; Percent = $bestPercent }
 }
 
 function Convert-Video {
@@ -237,8 +247,12 @@ function Convert-Video {
 
     try {
         $vmafArguments = Get-VmafArguments $Source
-        $qp = Find-NvencQp $Source $vmafArguments
+        $selection = Find-NvencQp $Source $vmafArguments
+        $qp = $selection.Qp
         Write-Host "Selected NVENC QP $qp"
+        if ($selection.Percent -gt 80) {
+            throw "Projected output is $($selection.Percent)% of original; less than 20% savings, refusing encode"
+        }
 
         Invoke-Native $Ffmpeg @(
             "-hide_banner", "-y", "-noautorotate",

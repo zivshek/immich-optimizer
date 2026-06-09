@@ -77,6 +77,7 @@ func (fw *FileWatcher) processFile(originalFilePath string) {
 	tp, err := fw.createTaskProcessor(originalFilePath)
 	if err != nil {
 		fw.logger.Printf("Error creating task processor for %s: %v", originalFilePath, err)
+		fw.recordFailure(filepath.Base(originalFilePath), originalFilePath, err)
 		return
 	}
 	defer tp.Close()
@@ -131,6 +132,7 @@ func (fw *FileWatcher) createTaskProcessor(filePath string) (*TaskProcessor, err
 // handleProcessingError handles errors that occur during file processing
 func (fw *FileWatcher) handleProcessingError(filePath string, err error) {
 	fw.logger.Printf("Error processing file %s: %v", filePath, err)
+	fw.recordFailure(filepath.Base(filePath), filePath, err)
 	if copyErr := copyFileToUndone(filePath, fw.watchDir, fw.profile.UndoneDir); copyErr != nil {
 		fw.logger.Printf("Error copying file %s to undone directory: %v", filePath, copyErr)
 	}
@@ -164,7 +166,7 @@ func (fw *FileWatcher) uploadProcessedFile(originalFilePath string, tp *TaskProc
 	if processedFilename == "" {
 		processedFilename = filepath.Base(originalFilePath)
 	}
-	if !fw.uploadToImmichWithFilename(processedFilePath, processedFilename) {
+	if !fw.uploadToImmichWithFilenameFromSource(processedFilePath, processedFilename, originalFilePath) {
 		return false
 	}
 	fw.recordProcessed(processedFilename, originalFilePath, tp.OriginalSize, tp.ProcessedSize)
@@ -196,6 +198,19 @@ func (fw *FileWatcher) recordProcessed(filename, originalFilePath string, origin
 	resolution := mediaResolution(originalFilePath)
 	if err := fw.statsStore.Record(fw.profile.Name, filename, resolution, originalBytes, uploadedBytes); err != nil {
 		fw.logger.Printf("Error recording statistics for %s: %v", filename, err)
+	}
+}
+
+func (fw *FileWatcher) recordFailure(filename, originalFilePath string, jobError error) {
+	if fw.statsStore == nil {
+		return
+	}
+	profileName := ""
+	if fw.profile != nil {
+		profileName = fw.profile.Name
+	}
+	if err := fw.statsStore.RecordFailure(profileName, filename, mediaResolution(originalFilePath), fileSize(originalFilePath), jobError); err != nil {
+		fw.logger.Printf("Error recording failed job for %s: %v", filename, err)
 	}
 }
 
