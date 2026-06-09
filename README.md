@@ -125,14 +125,19 @@ history rows can be deleted from the dashboard.
 The dashboard lists every `tasks.yaml` found below
 `/etc/immich-optimizer/bundled-configs` and `/custom_profiles`. Each ingestion
 profile has independent image and video config dropdowns, so their tasks can be
-mixed without creating another combined config. A config appears only in the
-dropdowns matching the extensions it declares. Custom entries appear as
+mixed without creating another combined config. Perceptual choices are
+single-purpose configs: `perceptual/webp`, `perceptual/avif`, `perceptual/av1`,
+and `perceptual/hevc`. Enable **Use NVIDIA** to make supported video configs use
+NVENC; perceptual AV1 intentionally remains SVT-AV1. A config appears only in
+the dropdowns matching the extensions it declares. Custom entries appear as
 `custom/<folder>`. Recently selected configs appear first, followed by the
 remaining folder names alphabetically. Changes apply only to jobs started after
 clicking **Apply** and persist in the SQLite database across container restarts.
 `IUO_TASKS_FILE` initializes both selections when no dashboard selection has
 been saved. A custom config may contain only image tasks or only video tasks;
 its scripts remain relative to the folder containing its `tasks.yaml`.
+Saved selections using the former combined perceptual config names migrate to
+the matching independent choices automatically.
 
 The dashboard does not currently provide authentication. Keep port `8098` on a
 trusted network or place it behind an authenticated reverse proxy. When using a
@@ -242,22 +247,16 @@ IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/standard/balanced-caesium-
 # AVIF: stronger compression with wider support than JPEG XL
 IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/standard/balanced-avif-nvidia-ffmpeg/tasks.yaml
 
-# Perceptual AV1: oavif SSIMULACRA2 images and ab-av1 VMAF videos
-IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/perceptual/perceptual-av1/tasks.yaml
-
-# Perceptual compatibility: WebP images and H.265/HEVC VMAF videos
-IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/perceptual/perceptual-hevc-webp/tasks.yaml
-
-# Perceptual compatibility with NVIDIA GPU HEVC encoding
-IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/perceptual/perceptual-hevc-webp-nvidia/tasks.yaml
+# Dashboard image choices: perceptual/webp, perceptual/avif
+# Dashboard video choices: perceptual/av1, perceptual/hevc
 ```
 
 The first three profiles are available in the standard `:latest` image. The
-three perceptual profiles require `ghcr.io/zivshek/immich-optimizer:perceptual`.
+perceptual image and video choices require
+`ghcr.io/zivshek/immich-optimizer:perceptual`.
 
-For WebP images with SVT-AV1 videos, select a WebP profile such as
-`perceptual/perceptual-hevc-webp` in the image dropdown and select
-`perceptual/perceptual-av1` in the video dropdown.
+For WebP images with SVT-AV1 videos, select `perceptual/webp` in the image
+dropdown and `perceptual/av1` in the video dropdown.
 
 The JPEG XL profile uses distance `1.0`; the Caesium profile keeps JPEG/JPG as
 standard JPEG at quality `85`; and the AVIF profile converts JPEG, PNG, and
@@ -269,20 +268,19 @@ files bit-for-bit.
 The AVIF profile uses ImageMagick with Debian's `libheif-plugin-aomenc` AV1
 still-image encoder, which is included in the published container.
 
-The perceptual AV1 profile uses `oavif --score-tgt 85` for images and
-`ab-av1 auto-encode --min-vmaf 95` for videos. It is CPU-heavy, but it searches
-for an AV1 encode that meets a perceptual quality target instead of applying
-one fixed quality number to every file. Videos are remuxed to MP4 with the
-original audio and metadata after the VMAF-guided video stream is encoded.
+The perceptual AVIF image config uses `oavif --score-tgt 85`. The perceptual
+AV1 video config uses `ab-av1 auto-encode --min-vmaf 95` with SVT-AV1. It is
+CPU-heavy, but it searches for an AV1 encode that meets a perceptual quality
+target instead of applying one fixed quality number to every file.
 
-The perceptual compatibility profile converts JPEG/PNG images to WebP quality
-`85` and uses `ab-av1` with `libx265`, VMAF `95`, 8-bit `yuv420p`, and `hvc1`
-MP4 output for videos. It generally saves less space than AV1, but playback
-and sharing compatibility is much better across older clients.
+The perceptual WebP image config converts JPEG/PNG images to WebP quality `85`.
+The perceptual HEVC video config uses `ab-av1` with `libx265`, VMAF `95`, 8-bit
+`yuv420p`, and `hvc1` MP4 output. It generally saves less space than AV1, but
+playback and sharing compatibility is much better across older clients.
 
-The NVIDIA variant uses the same WebP and VMAF targets but replaces CPU
+When **Use NVIDIA** is enabled with `perceptual/hevc`, it replaces CPU
 `libx265` with `hevc_nvenc`. It is much faster, though files may be larger than
-the CPU profile at the same VMAF target. VMAF analysis still runs on the CPU.
+CPU HEVC at the same VMAF target. VMAF analysis still runs on the CPU.
 It searches NVENC constant-QP values for VMAF `95`; when a difficult source
 cannot reach that target even at the highest-quality tested QP, it logs a
 warning and uses the best measured result. If the selected result is projected

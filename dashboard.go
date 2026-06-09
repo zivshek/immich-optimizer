@@ -95,6 +95,7 @@ func (dashboard *DashboardServer) handleSelectTaskConfig(w http.ResponseWriter, 
 	var selection struct {
 		ImageConfig string `json:"image_config"`
 		VideoConfig string `json:"video_config"`
+		UseNvidia   bool   `json:"use_nvidia"`
 	}
 	if err := json.NewDecoder(request.Body).Decode(&selection); err != nil ||
 		strings.TrimSpace(selection.ImageConfig) == "" || strings.TrimSpace(selection.VideoConfig) == "" {
@@ -107,6 +108,10 @@ func (dashboard *DashboardServer) handleSelectTaskConfig(w http.ResponseWriter, 
 		return
 	}
 	if err := dashboard.configs.Select(profile, mediaTypeVideo, selection.VideoConfig); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := dashboard.configs.SetNvidia(profile, selection.UseNvidia); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -189,7 +194,7 @@ const dashboardHTML = `<!doctype html>
 main{max-width:1600px;margin:auto;padding:24px}h1{margin:0 0 20px;font-size:24px}.cards{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}
 .card,.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px}.label{color:var(--muted);font-size:12px;text-transform:uppercase}.value{font-size:28px;font-weight:700;margin-top:8px}
 .dashboard-section{margin-top:24px}.panel{overflow:hidden}.panel-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}.panel h2{font-size:15px;margin:0}
-button,select{border:1px solid var(--line);border-radius:7px;background:#1e293b;color:var(--text);padding:7px 12px;font:inherit}button{cursor:pointer}button:hover{background:#273449}button:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.config-select{min-width:320px}.config-status{color:var(--muted)}.delete-job{padding:4px 8px;color:var(--danger)}.job-failed{background:var(--danger-bg);color:var(--danger)}.pagination{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:14px}.pagination button:disabled{opacity:.45;cursor:default}
+button,select{border:1px solid var(--line);border-radius:7px;background:#1e293b;color:var(--text);padding:7px 12px;font:inherit}button{cursor:pointer}button:hover{background:#273449}button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.config-select{min-width:280px}.nvidia-option{display:flex;align-items:center;gap:8px;white-space:nowrap}.config-status{color:var(--muted)}.delete-job{padding:4px 8px;color:var(--danger)}.job-failed{background:var(--danger-bg);color:var(--danger)}.pagination{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:14px}.pagination button:disabled{opacity:.45;cursor:default}
 table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:9px;border-bottom:1px solid var(--line)}th{color:var(--muted);font-size:11px;text-transform:uppercase}
 #logs{height:440px;overflow:auto;white-space:pre-wrap;font:12px ui-monospace,monospace;color:#cbd5e1}.good{color:#86efac}
 @media(max-width:1100px){.cards{grid-template-columns:repeat(3,1fr)}}@media(max-width:700px){.cards{grid-template-columns:repeat(2,1fr)}}@media(max-width:520px){.cards{grid-template-columns:1fr}}
@@ -205,7 +210,7 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:9px;bord
 <div class="card"><div class="label">Total Reduction</div><div class="value good" id="reduction">0%</div></div>
 </section>
 <section class="dashboard-section">
-<div class="panel"><div class="panel-header"><h2>Media Configurations</h2><span class="config-status" id="config-status"></span></div><table><thead><tr><th>Profile</th><th>Image Config</th><th>Video Config</th><th></th></tr></thead><tbody id="task-configs"></tbody></table></div>
+<div class="panel"><div class="panel-header"><h2>Media Configurations</h2><span class="config-status" id="config-status"></span></div><table><thead><tr><th>Profile</th><th>Image Config</th><th>Video Config</th><th>NVIDIA</th><th></th></tr></thead><tbody id="task-configs"></tbody></table></div>
 </section>
 <section class="dashboard-section">
 <div class="panel"><div class="panel-header"><h2>Recent Jobs</h2></div><table><thead><tr><th>Time</th><th>Profile</th><th>File</th><th>Resolution</th><th>Original Size</th><th>Compressed Size</th><th>Saved</th><th>Action</th><th>Reduction</th></tr></thead><tbody id="recent"></tbody></table><div class="pagination"><button id="previous-page" type="button">Previous</button><span id="page-label">Page 1 of 1</span><button id="next-page" type="button">Next</button></div></div>
@@ -234,9 +239,9 @@ copyLog.addEventListener('click',async()=>{
 });
 taskConfigs.addEventListener('click',async event=>{
  const button=event.target.closest('.apply-config');if(!button)return;
- const imageSelect=document.getElementById('image-config-'+button.dataset.index),videoSelect=document.getElementById('video-config-'+button.dataset.index);
+ const imageSelect=document.getElementById('image-config-'+button.dataset.index),videoSelect=document.getElementById('video-config-'+button.dataset.index),useNvidia=document.getElementById('use-nvidia-'+button.dataset.index);
  configStatus.textContent='Applying...';
- const response=await fetch('/api/task-configs/'+encodeURIComponent(button.dataset.profile),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({image_config:imageSelect.value,video_config:videoSelect.value})});
+ const response=await fetch('/api/task-configs/'+encodeURIComponent(button.dataset.profile),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({image_config:imageSelect.value,video_config:videoSelect.value,use_nvidia:useNvidia.checked})});
  configStatus.textContent=response.ok?'Applied to future jobs':(await response.text()).trim();
  await refreshTaskConfigs();
 });
@@ -251,7 +256,7 @@ recent.addEventListener('click',async event=>{
 async function refreshTaskConfigs(){
  if(document.activeElement&&document.activeElement.classList.contains('config-select'))return;
  const profiles=await fetch('/api/task-configs').then(x=>x.json());
- taskConfigs.innerHTML=profiles.map((p,i)=>'<tr><td>'+esc(p.profile)+'</td><td><select class="config-select" id="image-config-'+i+'">'+p.image_configs.map(c=>'<option value="'+esc(c.name)+'"'+(c.name===p.image_current?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select></td><td><select class="config-select" id="video-config-'+i+'">'+p.video_configs.map(c=>'<option value="'+esc(c.name)+'"'+(c.name===p.video_current?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select></td><td><button class="apply-config" data-index="'+i+'" data-profile="'+esc(p.profile)+'" type="button">Apply</button></td></tr>').join('');
+ taskConfigs.innerHTML=profiles.map((p,i)=>'<tr><td>'+esc(p.profile)+'</td><td><select class="config-select" id="image-config-'+i+'">'+p.image_configs.map(c=>'<option value="'+esc(c.name)+'"'+(c.name===p.image_current?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select></td><td><select class="config-select" id="video-config-'+i+'">'+p.video_configs.map(c=>'<option value="'+esc(c.name)+'"'+(c.name===p.video_current?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select></td><td><label class="nvidia-option"><input id="use-nvidia-'+i+'" type="checkbox"'+(p.use_nvidia?' checked':'')+'> Use when supported</label></td><td><button class="apply-config" data-index="'+i+'" data-profile="'+esc(p.profile)+'" type="button">Apply</button></td></tr>').join('');
 }
 async function refresh(){
  const [s,r,l]=await Promise.all([fetch('/api/stats').then(x=>x.json()),fetch('/api/recent?page='+currentPage).then(x=>x.json()),fetch('/api/logs').then(x=>x.json()),refreshTaskConfigs()]);

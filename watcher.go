@@ -30,6 +30,7 @@ type FileWatcher struct {
 	configMu       sync.RWMutex
 	imageConfig    taskConfigSelection
 	videoConfig    taskConfigSelection
+	useNvidia      bool
 	semaphore      chan struct{} // shared application concurrency limit
 	stopOnce       sync.Once
 	processing     sync.Map // tracks files actively being processed to avoid duplicate concurrent tasks
@@ -112,6 +113,19 @@ func (fw *FileWatcher) setConfig(mediaType string, config *Config, configFile, c
 		fw.imageConfig = selection
 	}
 	fw.logger.Printf("Profile %s: selected %s task config %s", fw.profile.Name, mediaType, configName)
+}
+
+func (fw *FileWatcher) nvidiaEnabled() bool {
+	fw.configMu.RLock()
+	defer fw.configMu.RUnlock()
+	return fw.useNvidia
+}
+
+func (fw *FileWatcher) setNvidiaEnabled(enabled bool) {
+	fw.configMu.Lock()
+	defer fw.configMu.Unlock()
+	fw.useNvidia = enabled
+	fw.logger.Printf("Profile %s: NVIDIA processing %s", fw.profile.Name, map[bool]string{true: "enabled", false: "disabled"}[enabled])
 }
 
 // Start begins monitoring the directory for file changes

@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"testing"
 )
 
@@ -75,12 +76,18 @@ tasks:
 	if err := registry.Select("alice", mediaTypeVideo, "standard/zeta"); err != nil {
 		t.Fatal(err)
 	}
+	if err := registry.SetNvidia("alice", true); err != nil {
+		t.Fatal(err)
+	}
 	profiles, err = registry.List()
 	if err != nil {
 		t.Fatal(err)
 	}
 	if profiles[0].ImageCurrent != "custom/my-profile" || profiles[0].VideoCurrent != "standard/zeta" {
 		t.Fatalf("independent selections were not applied: %+v", profiles)
+	}
+	if !profiles[0].UseNvidia {
+		t.Fatal("NVIDIA option was not applied")
 	}
 	imageSelected, err := store.SelectedMediaTaskConfig("alice", mediaTypeImage)
 	if err != nil || imageSelected != "custom/my-profile" {
@@ -89,6 +96,36 @@ tasks:
 	videoSelected, err := store.SelectedMediaTaskConfig("alice", mediaTypeVideo)
 	if err != nil || videoSelected != "standard/zeta" {
 		t.Fatalf("video selection was not persisted: %q, %v", videoSelected, err)
+	}
+}
+
+func TestBundledPerceptualConfigsAreSinglePurpose(t *testing.T) {
+	root := filepath.Join("config", "perceptual")
+	paths := make(map[string]string)
+	if err := discoverTaskConfigPaths(root, "perceptual", paths); err != nil {
+		t.Fatal(err)
+	}
+	names := make([]string, 0, len(paths))
+	for name, path := range paths {
+		config, err := NewConfig(&path)
+		if err != nil {
+			t.Fatalf("load %s: %v", name, err)
+		}
+		hasImages, hasVideos := configMediaTypes(config)
+		if hasImages == hasVideos {
+			t.Fatalf("%s must contain exactly one media type", name)
+		}
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	expected := []string{"perceptual/av1", "perceptual/avif", "perceptual/hevc", "perceptual/webp"}
+	if len(names) != len(expected) {
+		t.Fatalf("unexpected perceptual configs: %v", names)
+	}
+	for i := range expected {
+		if names[i] != expected[i] {
+			t.Fatalf("unexpected perceptual configs: %v", names)
+		}
 	}
 }
 

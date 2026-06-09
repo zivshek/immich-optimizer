@@ -73,12 +73,15 @@ tasks:
 	if configResponse.Code != http.StatusOK || !strings.Contains(configResponse.Body.String(), `"image_current":"standard/lossless"`) {
 		t.Fatalf("unexpected task configs response: %d %s", configResponse.Code, configResponse.Body.String())
 	}
-	selectRequest := httptest.NewRequest(http.MethodPut, "/api/task-configs/alice", strings.NewReader(`{"image_config":"standard/lossless","video_config":"standard/lossless"}`))
+	selectRequest := httptest.NewRequest(http.MethodPut, "/api/task-configs/alice", strings.NewReader(`{"image_config":"standard/lossless","video_config":"standard/lossless","use_nvidia":true}`))
 	selectRequest.SetPathValue("profile", "alice")
 	selectResponse := httptest.NewRecorder()
 	dashboard.handleSelectTaskConfig(selectResponse, selectRequest)
 	if selectResponse.Code != http.StatusNoContent {
 		t.Fatalf("unexpected task config selection response: %d %s", selectResponse.Code, selectResponse.Body.String())
+	}
+	if !watcher.nvidiaEnabled() {
+		t.Fatal("NVIDIA option was not applied")
 	}
 
 	recentRequest := httptest.NewRequest(http.MethodGet, "/api/recent?page=1", nil)
@@ -106,7 +109,7 @@ tasks:
 	indexRequest := httptest.NewRequest(http.MethodGet, "/", nil)
 	indexResponse := httptest.NewRecorder()
 	dashboard.handleIndex(indexResponse, indexRequest)
-	for _, expected := range []string{`id="copy-log"`, "navigator.clipboard.writeText", `class="dashboard-section"`, "Media Configurations", "Image Config", "Video Config", "apply-config"} {
+	for _, expected := range []string{`id="copy-log"`, "navigator.clipboard.writeText", `class="dashboard-section"`, "Media Configurations", "Image Config", "Video Config", "Use when supported", "apply-config"} {
 		if !strings.Contains(indexResponse.Body.String(), expected) {
 			t.Fatalf("dashboard HTML is missing %q", expected)
 		}

@@ -113,4 +113,11 @@ func TestStatsStorePersistsIndependentMediaTaskConfigs(t *testing.T) {
 	if err != nil || videoConfig != "videos/svt-av1" {
 		t.Fatalf("unexpected video config: %q, %v", videoConfig, err)
 	}
+	if err := store.SetProfileNvidia("alice", true); err != nil {
+		t.Fatal(err)
+	}
+	enabled, err := store.ProfileNvidia("alice")
+	if err != nil || !enabled {
+		t.Fatalf("unexpected NVIDIA option: %v, %v", enabled, err)
+	}
 }

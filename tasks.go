@@ -31,8 +31,9 @@ type TaskProcessor struct {
 	tempWorkDirSrc string
 	tempWorkDirDst string
 
-	logger    *customLogger
-	configDir string
+	logger      *customLogger
+	configDir   string
+	environment []string
 }
 
 func NewTaskProcessor(filename string) (tp *TaskProcessor, err error) {
@@ -65,6 +66,10 @@ func (tp *TaskProcessor) SetLogger(logger *customLogger) {
 
 func (tp *TaskProcessor) SetConfigDir(configDir string) {
 	tp.configDir = configDir
+}
+
+func (tp *TaskProcessor) SetEnvironment(environment ...string) {
+	tp.environment = append([]string(nil), environment...)
 }
 
 func (tp *TaskProcessor) logf(str string, args ...any) {
@@ -225,6 +230,7 @@ func (tp *TaskProcessor) executeCommand(command string) error {
 	if tp.configDir != "" {
 		cmd.Dir = tp.configDir
 	}
+	cmd.Env = append(os.Environ(), tp.environment...)
 	output := &commandOutputWriter{logger: tp.logger}
 	cmd.Stdout = output
 	cmd.Stderr = output

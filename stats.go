@@ -110,6 +110,11 @@ func (store *StatsStore) init() error {
 			selected_at DATETIME NOT NULL,
 			PRIMARY KEY (profile, media_type)
 		);
+		CREATE TABLE IF NOT EXISTS profile_processing_options (
+			profile TEXT PRIMARY KEY,
+			use_nvidia INTEGER NOT NULL DEFAULT 0,
+			updated_at DATETIME NOT NULL
+		);
 	`)
 	if err != nil {
 		return fmt.Errorf("initialize statistics database: %w", err)
@@ -127,6 +132,30 @@ func (store *StatsStore) init() error {
 		}
 	}
 	return nil
+}
+
+func (store *StatsStore) SetProfileNvidia(profile string, enabled bool) error {
+	_, err := store.db.Exec(`
+		INSERT INTO profile_processing_options (profile, use_nvidia, updated_at)
+		VALUES (?, ?, ?)
+		ON CONFLICT(profile) DO UPDATE SET use_nvidia = excluded.use_nvidia, updated_at = excluded.updated_at
+	`, profile, enabled, time.Now().UTC())
+	if err != nil {
+		return fmt.Errorf("record profile NVIDIA option: %w", err)
+	}
+	return nil
+}
+
+func (store *StatsStore) ProfileNvidia(profile string) (bool, error) {
+	var enabled bool
+	err := store.db.QueryRow(`SELECT use_nvidia FROM profile_processing_options WHERE profile = ?`, profile).Scan(&enabled)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("query profile NVIDIA option: %w", err)
+	}
+	return enabled, nil
 }
 
 func (store *StatsStore) RecordMediaTaskConfigSelection(profile, mediaType, configName string) error {

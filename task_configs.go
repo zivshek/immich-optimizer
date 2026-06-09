@@ -33,6 +33,7 @@ type ProfileTaskConfigs struct {
 	VideoCurrent string             `json:"video_current"`
 	ImageConfigs []TaskConfigOption `json:"image_configs"`
 	VideoConfigs []TaskConfigOption `json:"video_configs"`
+	UseNvidia    bool               `json:"use_nvidia"`
 }
 
 type discoveredTaskConfig struct {
@@ -73,6 +74,7 @@ func (registry *TaskConfigRegistry) Register(watcher *FileWatcher) error {
 	if err != nil {
 		return err
 	}
+	migratedNvidia := legacySelection == "perceptual/perceptual-hevc-webp-nvidia"
 	for _, mediaType := range []string{mediaTypeImage, mediaTypeVideo} {
 		selected, err := registry.store.SelectedMediaTaskConfig(watcher.profile.Name, mediaType)
 		if err != nil {
@@ -81,6 +83,10 @@ func (registry *TaskConfigRegistry) Register(watcher *FileWatcher) error {
 		if selected == "" {
 			selected = legacySelection
 		}
+		if selected == "perceptual/perceptual-hevc-webp-nvidia" {
+			migratedNvidia = true
+		}
+		selected = migratedPerceptualConfigName(selected, mediaType)
 		if selected == "" {
 			selected = configNameForPath(configs, watcher.profile.ConfigFile)
 		}
@@ -93,7 +99,32 @@ func (registry *TaskConfigRegistry) Register(watcher *FileWatcher) error {
 		}
 		watcher.setConfig(mediaType, config.Config, config.Path, config.Name)
 	}
+	useNvidia, err := registry.store.ProfileNvidia(watcher.profile.Name)
+	if err != nil {
+		return err
+	}
+	if migratedNvidia {
+		useNvidia = true
+	}
+	watcher.setNvidiaEnabled(useNvidia)
 	return nil
+}
+
+func migratedPerceptualConfigName(name, mediaType string) string {
+	switch name {
+	case "perceptual/perceptual-av1":
+		if mediaType == mediaTypeImage {
+			return "perceptual/avif"
+		}
+		return "perceptual/av1"
+	case "perceptual/perceptual-hevc-webp", "perceptual/perceptual-hevc-webp-nvidia":
+		if mediaType == mediaTypeImage {
+			return "perceptual/webp"
+		}
+		return "perceptual/hevc"
+	default:
+		return name
+	}
 }
 
 func (registry *TaskConfigRegistry) List() ([]ProfileTaskConfigs, error) {
@@ -120,10 +151,25 @@ func (registry *TaskConfigRegistry) List() ([]ProfileTaskConfigs, error) {
 			VideoCurrent: watcher.currentConfigName(mediaTypeVideo),
 			ImageConfigs: append([]TaskConfigOption(nil), imageConfigs...),
 			VideoConfigs: append([]TaskConfigOption(nil), videoConfigs...),
+			UseNvidia:    watcher.nvidiaEnabled(),
 		})
 	}
 	sort.Slice(profiles, func(i, j int) bool { return profiles[i].Profile < profiles[j].Profile })
 	return profiles, nil
+}
+
+func (registry *TaskConfigRegistry) SetNvidia(profileName string, enabled bool) error {
+	registry.mu.RLock()
+	watcher := registry.watchers[profileName]
+	registry.mu.RUnlock()
+	if watcher == nil {
+		return fmt.Errorf("profile %q not found", profileName)
+	}
+	if err := registry.store.SetProfileNvidia(profileName, enabled); err != nil {
+		return err
+	}
+	watcher.setNvidiaEnabled(enabled)
+	return nil
 }
 
 func (registry *TaskConfigRegistry) Select(profileName, mediaType, configName string) error {

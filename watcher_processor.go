@@ -76,7 +76,7 @@ func (fw *FileWatcher) processFile(originalFilePath string) {
 		return
 	}
 
-	tp, err := fw.createTaskProcessor(originalFilePath, active.File)
+	tp, err := fw.createTaskProcessor(originalFilePath, active.File, fw.nvidiaEnabled())
 	if err != nil {
 		fw.logger.Printf("Error creating task processor for %s: %v", originalFilePath, err)
 		fw.recordFailure(filepath.Base(originalFilePath), originalFilePath, err)
@@ -119,7 +119,7 @@ func (fw *FileWatcher) shouldOptimizeFile(filePath string, config *Config) bool 
 }
 
 // createTaskProcessor creates and configures a new task processor for the file
-func (fw *FileWatcher) createTaskProcessor(filePath, configFile string) (*TaskProcessor, error) {
+func (fw *FileWatcher) createTaskProcessor(filePath, configFile string, useNvidia bool) (*TaskProcessor, error) {
 	tp, err := NewTaskProcessor(filePath)
 	if err != nil {
 		return nil, err
@@ -130,6 +130,11 @@ func (fw *FileWatcher) createTaskProcessor(filePath, configFile string) (*TaskPr
 
 	if configFile != "" {
 		tp.SetConfigDir(filepath.Dir(configFile))
+	}
+	if useNvidia {
+		tp.SetEnvironment("IUO_USE_NVIDIA=1")
+	} else {
+		tp.SetEnvironment("IUO_USE_NVIDIA=0")
 	}
 
 	return tp, nil

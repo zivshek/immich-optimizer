@@ -1,0 +1,25 @@
+tasks:
+  - name: perceptual-av1-svt
+    command: >
+      sh ./transcode-video.sh
+      "{{.src_folder}}/{{.name}}.{{.extension}}"
+      "{{.dst_folder}}/{{.name}}.mp4"
+    extensions:
+      - 3gp
+      - 3gpp
+      - avi
+      - flv
+      - insv
+      - m2t
+      - m2ts
+      - m4v
+      - mkv
+      - mov
+      - mp4
+      - mpe
+      - mpeg
+      - mpg
+      - mts
+      - ts
+      - webm
+      - wmv
