@@ -114,6 +114,7 @@ func (store *StatsStore) init() error {
 			profile TEXT PRIMARY KEY,
 			use_nvidia INTEGER NOT NULL DEFAULT 0,
 			image_score INTEGER NOT NULL DEFAULT 85,
+			video_score INTEGER NOT NULL DEFAULT 95,
 			updated_at DATETIME NOT NULL
 		);
 	`)
@@ -133,6 +134,9 @@ func (store *StatsStore) init() error {
 		}
 	}
 	if err := store.ensureColumn("profile_processing_options", "image_score", "INTEGER NOT NULL DEFAULT 85"); err != nil {
+		return err
+	}
+	if err := store.ensureColumn("profile_processing_options", "video_score", "INTEGER NOT NULL DEFAULT 95"); err != nil {
 		return err
 	}
 	return nil
@@ -182,6 +186,30 @@ func (store *StatsStore) ProfileImageScore(profile string) (int, error) {
 	}
 	if err != nil {
 		return 0, fmt.Errorf("query profile image score: %w", err)
+	}
+	return score, nil
+}
+
+func (store *StatsStore) SetProfileVideoScore(profile string, score int) error {
+	_, err := store.db.Exec(`
+		INSERT INTO profile_processing_options (profile, video_score, updated_at)
+		VALUES (?, ?, ?)
+		ON CONFLICT(profile) DO UPDATE SET video_score = excluded.video_score, updated_at = excluded.updated_at
+	`, profile, score, time.Now().UTC())
+	if err != nil {
+		return fmt.Errorf("record profile video score: %w", err)
+	}
+	return nil
+}
+
+func (store *StatsStore) ProfileVideoScore(profile string) (int, error) {
+	var score int
+	err := store.db.QueryRow(`SELECT video_score FROM profile_processing_options WHERE profile = ?`, profile).Scan(&score)
+	if err == sql.ErrNoRows {
+		return 95, nil
+	}
+	if err != nil {
+		return 0, fmt.Errorf("query profile video score: %w", err)
 	}
 	return score, nil
 }

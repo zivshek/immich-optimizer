@@ -275,7 +275,8 @@ applies to both perceptual image configs. The perceptual AVIF image config uses
 that value with `oavif --score-tgt`. The perceptual
 WebP image config searches `cwebp` qualities with `fssimu2` and selects the
 smallest output meeting the selected score. The perceptual AV1 video config uses
-`ab-av1 auto-encode --min-vmaf 95` with SVT-AV1. It is
+`ab-av1 auto-encode` with the dashboard's per-profile **Video Score**, which
+defaults to VMAF `95`, and SVT-AV1. It is
 CPU-heavy, but it searches for an AV1 encode that meets a perceptual quality
 target instead of applying one fixed quality number to every file.
 

@@ -32,6 +32,7 @@ type FileWatcher struct {
 	videoConfig    taskConfigSelection
 	useNvidia      bool
 	imageScore     int
+	videoScore     int
 	semaphore      chan struct{} // shared application concurrency limit
 	stopOnce       sync.Once
 	processing     sync.Map // tracks files actively being processed to avoid duplicate concurrent tasks
@@ -66,6 +67,7 @@ func NewFileWatcher(profile *ProfileConfig, immichClient *ImmichClient, logger *
 		imageConfig:  taskConfigSelection{Config: profile.Tasks, File: profile.ConfigFile, Name: profile.ConfigFile},
 		videoConfig:  taskConfigSelection{Config: profile.Tasks, File: profile.ConfigFile, Name: profile.ConfigFile},
 		imageScore:   85,
+		videoScore:   95,
 	}
 
 	return fw, nil
@@ -144,6 +146,22 @@ func (fw *FileWatcher) setImageScore(score int) {
 	defer fw.configMu.Unlock()
 	fw.imageScore = score
 	fw.logger.Printf("Profile %s: image SSIMULACRA2 target set to %d", fw.profile.Name, score)
+}
+
+func (fw *FileWatcher) currentVideoScore() int {
+	fw.configMu.RLock()
+	defer fw.configMu.RUnlock()
+	if fw.videoScore <= 0 {
+		return 95
+	}
+	return fw.videoScore
+}
+
+func (fw *FileWatcher) setVideoScore(score int) {
+	fw.configMu.Lock()
+	defer fw.configMu.Unlock()
+	fw.videoScore = score
+	fw.logger.Printf("Profile %s: video VMAF target set to %d", fw.profile.Name, score)
 }
 
 // Start begins monitoring the directory for file changes

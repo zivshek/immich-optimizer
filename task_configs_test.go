@@ -83,6 +83,9 @@ tasks:
 	if err := registry.SetImageScore("alice", 87); err != nil {
 		t.Fatal(err)
 	}
+	if err := registry.SetVideoScore("alice", 93); err != nil {
+		t.Fatal(err)
+	}
 	profiles, err = registry.List()
 	if err != nil {
 		t.Fatal(err)
@@ -95,6 +98,9 @@ tasks:
 	}
 	if profiles[0].ImageScore != 87 {
 		t.Fatalf("image score was not applied: %d", profiles[0].ImageScore)
+	}
+	if profiles[0].VideoScore != 93 {
+		t.Fatalf("video score was not applied: %d", profiles[0].VideoScore)
 	}
 	imageSelected, err := store.SelectedMediaTaskConfig("alice", mediaTypeImage)
 	if err != nil || imageSelected != "custom/my-profile" {
@@ -136,7 +142,7 @@ func TestBundledPerceptualConfigsAreSinglePurpose(t *testing.T) {
 	}
 }
 
-func TestPerceptualImagesTargetSsimulacra2Score90(t *testing.T) {
+func TestPerceptualImagesUseDashboardSsimulacra2Target(t *testing.T) {
 	avifScript, err := os.ReadFile(filepath.Join("config", "perceptual", "avif", "transcode-image.sh"))
 	if err != nil {
 		t.Fatal(err)
@@ -154,6 +160,22 @@ func TestPerceptualImagesTargetSsimulacra2Score90(t *testing.T) {
 	for _, expected := range []string{`target_score="${IUO_IMAGE_SCORE:-85}"`, "fssimu2", "2>&1", "unable to read SSIMULACRA2 score", "selected WebP quality"} {
 		if !strings.Contains(string(webpScript), expected) {
 			t.Fatalf("perceptual WebP script is missing %q", expected)
+		}
+	}
+}
+
+func TestPerceptualVideosUseDashboardVmafTarget(t *testing.T) {
+	for _, path := range []string{
+		filepath.Join("config", "perceptual", "av1", "transcode-video.sh"),
+		filepath.Join("config", "perceptual", "hevc", "transcode-video-cpu.sh"),
+		filepath.Join("config", "perceptual", "hevc", "transcode-video-nvidia.sh"),
+	} {
+		script, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(script), `IUO_VIDEO_SCORE:-95`) {
+			t.Fatalf("%s does not use the dashboard VMAF target", path)
 		}
 	}
 }

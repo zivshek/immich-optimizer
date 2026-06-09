@@ -6,6 +6,7 @@ dst=$2
 workdir=$(dirname "$dst")
 video_only="${workdir}/video-only-av1.mp4"
 tmpdir="${workdir}/ab-av1-tmp"
+min_vmaf="${IUO_VIDEO_SCORE:-95}"
 
 mkdir -p "$tmpdir"
 trap 'rm -rf "$tmpdir" "$video_only"' EXIT
@@ -29,7 +30,7 @@ ab-av1 auto-encode \
   --input "$src" \
   --output "$video_only" \
   --video-only \
-  --min-vmaf 95 \
+  --min-vmaf "$min_vmaf" \
   --max-encoded-percent 80 \
   --preset 6 \
   --min-samples 3 \

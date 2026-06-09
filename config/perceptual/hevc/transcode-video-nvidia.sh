@@ -6,7 +6,7 @@ dst=$2
 workdir=$(dirname "$dst")
 video_only="${workdir}/video-only-hevc-nvenc.mp4"
 tmpdir="${workdir}/ab-av1-tmp"
-min_vmaf=95
+min_vmaf="${IUO_VIDEO_SCORE:-95}"
 
 mkdir -p "$tmpdir"
 trap 'rm -rf "$tmpdir" "$video_only"' EXIT

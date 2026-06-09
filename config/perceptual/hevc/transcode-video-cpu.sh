@@ -6,6 +6,7 @@ dst=$2
 workdir=$(dirname "$dst")
 video_only="${workdir}/video-only-hevc.mp4"
 tmpdir="${workdir}/ab-av1-tmp"
+min_vmaf="${IUO_VIDEO_SCORE:-95}"
 
 mkdir -p "$tmpdir"
 trap 'rm -rf "$tmpdir" "$video_only"' EXIT
@@ -30,7 +31,7 @@ ab-av1 auto-encode \
   --video-only \
   --encoder libx265 \
   --pix-format yuv420p \
-  --min-vmaf 95 \
+  --min-vmaf "$min_vmaf" \
   --max-encoded-percent 85 \
   --preset slow \
   --min-samples 3 \
