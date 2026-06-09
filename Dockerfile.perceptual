@@ -120,6 +120,7 @@ FROM --platform=$TARGETPLATFORM ubuntu:24.04 AS oavif-builder
 
 ARG ZIG_VERSION=0.15.2
 ARG OAVIF_VERSION=0.1.3
+ARG FSSIMU2_VERSION=0.1.3
 ARG LIBAVIF_VERSION=1.3.0
 ARG LIBWEBP_VERSION=1.4.0
 ARG LIBJPEG_TURBO_VERSION=3.1.3
@@ -235,11 +236,16 @@ RUN set -eux; \
     grep '\.path = "../fssimu2"' build.zig.zon; \
     zig build --release=fast --search-prefix ${INSTALL_PREFIX}; \
     install -m 755 zig-out/bin/oavif /usr/local/bin/oavif; \
-    cd /build/fssimu2; \
+    /usr/local/bin/oavif --version
+
+FROM oavif-builder AS fssimu2-builder
+
+RUN set -eux; \
+    git clone --depth 1 --branch "${FSSIMU2_VERSION}" https://github.com/gianni-rosato/fssimu2.git /build/fssimu2-cli; \
+    cd /build/fssimu2-cli; \
     zig build --release=fast --search-prefix ${INSTALL_PREFIX}; \
     install -m 755 zig-out/bin/fssimu2 /usr/local/bin/fssimu2; \
-    /usr/local/bin/fssimu2 --version; \
-    /usr/local/bin/oavif --version
+    /usr/local/bin/fssimu2 --version
 
 FROM debian:trixie-slim
 
@@ -278,7 +284,7 @@ COPY --from=ab-av1-builder /out/bin/ab-av1 /usr/local/bin/ab-av1
 COPY --from=ab-ffmpeg-builder /opt/ab-av1 /opt/ab-av1
 COPY --from=oavif-builder /build/install/ /build
 COPY --from=oavif-builder /usr/local/bin/oavif /usr/local/bin/oavif
-COPY --from=oavif-builder /usr/local/bin/fssimu2 /usr/local/bin/fssimu2
+COPY --from=fssimu2-builder /usr/local/bin/fssimu2 /usr/local/bin/fssimu2
 ENV LD_LIBRARY_PATH=/build/lib:/opt/ab-av1/lib
 RUN oavif --version && \
     fssimu2 --version && \
