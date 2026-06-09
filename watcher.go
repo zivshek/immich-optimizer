@@ -77,10 +77,20 @@ type taskConfigSelection struct {
 func (fw *FileWatcher) activeConfig(mediaType string) taskConfigSelection {
 	fw.configMu.RLock()
 	defer fw.configMu.RUnlock()
+	var selection taskConfigSelection
 	if mediaType == mediaTypeVideo {
-		return fw.videoConfig
+		selection = fw.videoConfig
+	} else {
+		selection = fw.imageConfig
 	}
-	return fw.imageConfig
+	if selection.Config == nil {
+		selection.Config = fw.config
+		if fw.profile != nil {
+			selection.File = fw.profile.ConfigFile
+			selection.Name = fw.profile.ConfigFile
+		}
+	}
+	return selection
 }
 
 func (fw *FileWatcher) currentConfigName(mediaType string) string {

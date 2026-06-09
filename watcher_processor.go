@@ -106,6 +106,10 @@ func (fw *FileWatcher) validateFile(filePath string) bool {
 
 // shouldOptimizeFile determines if a file should be processed for optimization
 func (fw *FileWatcher) shouldOptimizeFile(filePath string, config *Config) bool {
+	if config == nil {
+		fw.logger.Printf("Skipping optimization for %s (no task config selected)", filePath)
+		return false
+	}
 	extension := filepath.Ext(filePath)
 	if !shouldProcessExtension(extension, config.Tasks) {
 		fw.logger.Printf("Skipping file %s (extension %s not configured for processing)", filePath, extension)
