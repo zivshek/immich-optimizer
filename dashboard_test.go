@@ -109,9 +109,12 @@ tasks:
 	indexRequest := httptest.NewRequest(http.MethodGet, "/", nil)
 	indexResponse := httptest.NewRecorder()
 	dashboard.handleIndex(indexResponse, indexRequest)
-	for _, expected := range []string{`id="copy-log"`, "navigator.clipboard.writeText", `class="dashboard-section"`, "Media Configurations", "Image Config", "Video Config", "Use when supported", "apply-config"} {
+	for _, expected := range []string{`id="copy-log"`, "navigator.clipboard.writeText", `class="dashboard-section"`, "Media Configurations", "Image Config", "Video Config", "Use when supported", "taskConfigs.addEventListener('change'", "config-control"} {
 		if !strings.Contains(indexResponse.Body.String(), expected) {
 			t.Fatalf("dashboard HTML is missing %q", expected)
 		}
+	}
+	if strings.Contains(indexResponse.Body.String(), "apply-config") {
+		t.Fatal("dashboard HTML still contains the Apply button")
 	}
 }

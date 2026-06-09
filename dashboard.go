@@ -210,7 +210,7 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:9px;bord
 <div class="card"><div class="label">Total Reduction</div><div class="value good" id="reduction">0%</div></div>
 </section>
 <section class="dashboard-section">
-<div class="panel"><div class="panel-header"><h2>Media Configurations</h2><span class="config-status" id="config-status"></span></div><table><thead><tr><th>Profile</th><th>Image Config</th><th>Video Config</th><th>NVIDIA</th><th></th></tr></thead><tbody id="task-configs"></tbody></table></div>
+<div class="panel"><div class="panel-header"><h2>Media Configurations</h2><span class="config-status" id="config-status"></span></div><table><thead><tr><th>Profile</th><th>Image Config</th><th>Video Config</th><th>NVIDIA</th></tr></thead><tbody id="task-configs"></tbody></table></div>
 </section>
 <section class="dashboard-section">
 <div class="panel"><div class="panel-header"><h2>Recent Jobs</h2></div><table><thead><tr><th>Time</th><th>Profile</th><th>File</th><th>Resolution</th><th>Original Size</th><th>Compressed Size</th><th>Saved</th><th>Action</th><th>Reduction</th></tr></thead><tbody id="recent"></tbody></table><div class="pagination"><button id="previous-page" type="button">Previous</button><span id="page-label">Page 1 of 1</span><button id="next-page" type="button">Next</button></div></div>
@@ -225,7 +225,7 @@ const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'
 const copyLog=document.getElementById('copy-log');
 const taskConfigs=document.getElementById('task-configs'),configStatus=document.getElementById('config-status');
 const previousPage=document.getElementById('previous-page'),nextPage=document.getElementById('next-page'),pageLabel=document.getElementById('page-label');
-let currentPage=1;
+let currentPage=1,applyingConfig=false;
 copyLog.addEventListener('click',async()=>{
  try{
   await navigator.clipboard.writeText(logs.textContent);
@@ -237,12 +237,20 @@ copyLog.addEventListener('click',async()=>{
  copyLog.textContent='Copied';
  setTimeout(()=>copyLog.textContent='Copy Log',1500);
 });
-taskConfigs.addEventListener('click',async event=>{
- const button=event.target.closest('.apply-config');if(!button)return;
- const imageSelect=document.getElementById('image-config-'+button.dataset.index),videoSelect=document.getElementById('video-config-'+button.dataset.index),useNvidia=document.getElementById('use-nvidia-'+button.dataset.index);
+taskConfigs.addEventListener('change',async event=>{
+ const control=event.target.closest('.config-control');if(!control)return;
+ const imageSelect=document.getElementById('image-config-'+control.dataset.index),videoSelect=document.getElementById('video-config-'+control.dataset.index),useNvidia=document.getElementById('use-nvidia-'+control.dataset.index);
+ applyingConfig=true;
+ imageSelect.disabled=true;videoSelect.disabled=true;useNvidia.disabled=true;
  configStatus.textContent='Applying...';
- const response=await fetch('/api/task-configs/'+encodeURIComponent(button.dataset.profile),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({image_config:imageSelect.value,video_config:videoSelect.value,use_nvidia:useNvidia.checked})});
- configStatus.textContent=response.ok?'Applied to future jobs':(await response.text()).trim();
+ try{
+  const response=await fetch('/api/task-configs/'+encodeURIComponent(control.dataset.profile),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({image_config:imageSelect.value,video_config:videoSelect.value,use_nvidia:useNvidia.checked})});
+  configStatus.textContent=response.ok?'Applied to future jobs':(await response.text()).trim();
+ }catch(error){
+  configStatus.textContent='Unable to apply: '+error.message;
+ }finally{
+  applyingConfig=false;imageSelect.disabled=false;videoSelect.disabled=false;useNvidia.disabled=false;
+ }
  await refreshTaskConfigs();
 });
 previousPage.addEventListener('click',()=>{if(currentPage>1){currentPage--;refresh()}});
@@ -254,9 +262,9 @@ recent.addEventListener('click',async event=>{
  if(response.ok)refresh();
 });
 async function refreshTaskConfigs(){
- if(document.activeElement&&document.activeElement.classList.contains('config-select'))return;
+ if(applyingConfig||(document.activeElement&&document.activeElement.classList.contains('config-select')))return;
  const profiles=await fetch('/api/task-configs').then(x=>x.json());
- taskConfigs.innerHTML=profiles.map((p,i)=>'<tr><td>'+esc(p.profile)+'</td><td><select class="config-select" id="image-config-'+i+'">'+p.image_configs.map(c=>'<option value="'+esc(c.name)+'"'+(c.name===p.image_current?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select></td><td><select class="config-select" id="video-config-'+i+'">'+p.video_configs.map(c=>'<option value="'+esc(c.name)+'"'+(c.name===p.video_current?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select></td><td><label class="nvidia-option"><input id="use-nvidia-'+i+'" type="checkbox"'+(p.use_nvidia?' checked':'')+'> Use when supported</label></td><td><button class="apply-config" data-index="'+i+'" data-profile="'+esc(p.profile)+'" type="button">Apply</button></td></tr>').join('');
+ taskConfigs.innerHTML=profiles.map((p,i)=>'<tr><td>'+esc(p.profile)+'</td><td><select class="config-select config-control" data-index="'+i+'" data-profile="'+esc(p.profile)+'" id="image-config-'+i+'">'+p.image_configs.map(c=>'<option value="'+esc(c.name)+'"'+(c.name===p.image_current?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select></td><td><select class="config-select config-control" data-index="'+i+'" data-profile="'+esc(p.profile)+'" id="video-config-'+i+'">'+p.video_configs.map(c=>'<option value="'+esc(c.name)+'"'+(c.name===p.video_current?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select></td><td><label class="nvidia-option"><input class="config-control" data-index="'+i+'" data-profile="'+esc(p.profile)+'" id="use-nvidia-'+i+'" type="checkbox"'+(p.use_nvidia?' checked':'')+'> Use when supported</label></td></tr>').join('');
 }
 async function refresh(){
  const [s,r,l]=await Promise.all([fetch('/api/stats').then(x=>x.json()),fetch('/api/recent?page='+currentPage).then(x=>x.json()),fetch('/api/logs').then(x=>x.json()),refreshTaskConfigs()]);

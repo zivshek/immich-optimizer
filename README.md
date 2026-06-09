@@ -132,7 +132,8 @@ NVENC; perceptual AV1 intentionally remains SVT-AV1. A config appears only in
 the dropdowns matching the extensions it declares. Custom entries appear as
 `custom/<folder>`. Recently selected configs appear first, followed by the
 remaining folder names alphabetically. Changes apply only to jobs started after
-clicking **Apply** and persist in the SQLite database across container restarts.
+changing a dropdown or NVIDIA toggle, and persist in the SQLite database across
+container restarts.
 `IUO_TASKS_FILE` initializes both selections when no dashboard selection has
 been saved. A custom config may contain only image tasks or only video tasks;
 its scripts remain relative to the folder containing its `tasks.yaml`.
