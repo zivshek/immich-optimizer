@@ -4,7 +4,6 @@ services:
     container_name: immich-optimizer
     environment:
       IUO_IMMICH_URL: http://immich-server:2283
-      IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/standard/lossless/tasks.yaml
       IUO_PROFILES_CONFIG: |
         profiles:
           - user: alice
@@ -19,6 +18,7 @@ services:
       - ./inbox:/inbox
       - ./undone:/undone
       - ./data:/data
+      - ./custom_profiles:/custom_profiles
     ports:
       - "8098:8098"
     restart: unless-stopped

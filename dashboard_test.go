@@ -32,12 +32,29 @@ func TestDashboardHandlers(t *testing.T) {
 	if err := os.MkdirAll(configDir, 0750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(configDir, "tasks.yaml"), []byte("tasks: []\n"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(configDir, "tasks.yaml"), []byte(`
+tasks:
+  - name: images
+    command: ""
+    extensions: [jpg]
+  - name: videos
+    command: ""
+    extensions: [mp4]
+`), 0600); err != nil {
 		t.Fatal(err)
 	}
-	registry := NewTaskConfigRegistry(configRoot, store)
-	profile := &ProfileConfig{Name: "alice", ConfigFile: filepath.Join(configDir, "tasks.yaml"), Tasks: &Config{}}
-	watcher := &FileWatcher{profile: profile, config: profile.Tasks, configFile: profile.ConfigFile, configName: profile.ConfigFile, logger: log.New(io.Discard, "", 0)}
+	registry := NewTaskConfigRegistry(configRoot, filepath.Join(t.TempDir(), "missing-custom"), store)
+	configFile := filepath.Join(configDir, "tasks.yaml")
+	config, err := NewConfig(&configFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile := &ProfileConfig{Name: "alice", ConfigFile: configFile, Tasks: config}
+	watcher := &FileWatcher{
+		profile: profile, config: profile.Tasks, logger: log.New(io.Discard, "", 0),
+		imageConfig: taskConfigSelection{Config: profile.Tasks, File: profile.ConfigFile, Name: profile.ConfigFile},
+		videoConfig: taskConfigSelection{Config: profile.Tasks, File: profile.ConfigFile, Name: profile.ConfigFile},
+	}
 	if err := registry.Register(watcher); err != nil {
 		t.Fatal(err)
 	}
@@ -53,8 +70,15 @@ func TestDashboardHandlers(t *testing.T) {
 	configRequest := httptest.NewRequest(http.MethodGet, "/api/task-configs", nil)
 	configResponse := httptest.NewRecorder()
 	dashboard.handleTaskConfigs(configResponse, configRequest)
-	if configResponse.Code != http.StatusOK || !strings.Contains(configResponse.Body.String(), `"current":"standard/lossless"`) {
+	if configResponse.Code != http.StatusOK || !strings.Contains(configResponse.Body.String(), `"image_current":"standard/lossless"`) {
 		t.Fatalf("unexpected task configs response: %d %s", configResponse.Code, configResponse.Body.String())
+	}
+	selectRequest := httptest.NewRequest(http.MethodPut, "/api/task-configs/alice", strings.NewReader(`{"image_config":"standard/lossless","video_config":"standard/lossless"}`))
+	selectRequest.SetPathValue("profile", "alice")
+	selectResponse := httptest.NewRecorder()
+	dashboard.handleSelectTaskConfig(selectResponse, selectRequest)
+	if selectResponse.Code != http.StatusNoContent {
+		t.Fatalf("unexpected task config selection response: %d %s", selectResponse.Code, selectResponse.Body.String())
 	}
 
 	recentRequest := httptest.NewRequest(http.MethodGet, "/api/recent?page=1", nil)
@@ -82,7 +106,7 @@ func TestDashboardHandlers(t *testing.T) {
 	indexRequest := httptest.NewRequest(http.MethodGet, "/", nil)
 	indexResponse := httptest.NewRecorder()
 	dashboard.handleIndex(indexResponse, indexRequest)
-	for _, expected := range []string{`id="copy-log"`, "navigator.clipboard.writeText", `class="dashboard-section"`, "Task Configurations", "apply-config"} {
+	for _, expected := range []string{`id="copy-log"`, "navigator.clipboard.writeText", `class="dashboard-section"`, "Media Configurations", "Image Config", "Video Config", "apply-config"} {
 		if !strings.Contains(indexResponse.Body.String(), expected) {
 			t.Fatalf("dashboard HTML is missing %q", expected)
 		}

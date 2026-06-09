@@ -35,6 +35,7 @@ type AppConfig struct {
 	DashboardAddress      string
 	StatsDatabase         string
 	BundledConfigsDir     string
+	CustomProfilesDir     string
 	MaxConcurrentRequests int
 	HTTPTimeoutSeconds    int
 	InotifyBufferSize     int
@@ -69,6 +70,7 @@ func loadAppConfig() (*AppConfig, error) {
 	viper.BindEnv("dashboard_address")
 	viper.BindEnv("stats_database")
 	viper.BindEnv("bundled_configs_dir")
+	viper.BindEnv("custom_profiles_dir")
 
 	viper.SetDefault("immich_url", "")
 	viper.SetDefault("immich_api_key", "")
@@ -81,6 +83,7 @@ func loadAppConfig() (*AppConfig, error) {
 	viper.SetDefault("dashboard_address", ":8098")
 	viper.SetDefault("stats_database", "/data/immich-optimizer.db")
 	viper.SetDefault("bundled_configs_dir", "/etc/immich-optimizer/bundled-configs")
+	viper.SetDefault("custom_profiles_dir", "/custom_profiles")
 
 	flag.BoolVar(&appConfig.ShowVersion, "version", false, "Show the current version")
 	flag.StringVar(&appConfig.ImmichURL, "immich_url", viper.GetString("immich_url"), "Immich server URL. Example: http://immich-server:2283")
@@ -94,6 +97,7 @@ func loadAppConfig() (*AppConfig, error) {
 	flag.StringVar(&appConfig.DashboardAddress, "dashboard_address", viper.GetString("dashboard_address"), "Dashboard listen address")
 	flag.StringVar(&appConfig.StatsDatabase, "stats_database", viper.GetString("stats_database"), "SQLite statistics database path")
 	flag.StringVar(&appConfig.BundledConfigsDir, "bundled_configs_dir", viper.GetString("bundled_configs_dir"), "Directory containing bundled task configurations")
+	flag.StringVar(&appConfig.CustomProfilesDir, "custom_profiles_dir", viper.GetString("custom_profiles_dir"), "Directory containing custom task configurations")
 	flag.Parse()
 
 	if appConfig.ShowVersion {
@@ -242,7 +246,7 @@ func main() {
 	}
 	defer statsStore.Close()
 
-	configRegistry := NewTaskConfigRegistry(config.BundledConfigsDir, statsStore)
+	configRegistry := NewTaskConfigRegistry(config.BundledConfigsDir, config.CustomProfilesDir, statsStore)
 
 	var watchers []*FileWatcher
 	for i := range config.Profiles {

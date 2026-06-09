@@ -67,8 +67,8 @@ RUN groupadd -r appuser && \
     mesa-va-drivers \
     webp && \
     rm -rf /var/lib/apt/lists/* && \
-    mkdir -p /etc/immich-optimizer/config /etc/immich-optimizer/bundled-configs/standard /watch /undone /data && \
-    chown -R appuser:appuser /etc/immich-optimizer /watch /undone /data
+    mkdir -p /etc/immich-optimizer/config /etc/immich-optimizer/bundled-configs/standard /custom_profiles /watch /undone /data && \
+    chown -R appuser:appuser /etc/immich-optimizer /custom_profiles /watch /undone /data
 
 COPY --from=app-builder /out/immich-optimizer /usr/local/bin/immich-optimizer
 COPY --from=caesium-builder /out/caesiumclt /usr/local/bin/caesiumclt

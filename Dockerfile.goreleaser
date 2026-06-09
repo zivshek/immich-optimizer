@@ -65,9 +65,10 @@ COPY --from=builder /usr/local/bin/caesiumclt /usr/local/bin/caesiumclt
 # Create directories with proper permissions
 RUN mkdir -p /etc/immich-optimizer/config \
     /etc/immich-optimizer/bundled-configs/standard \
+    /custom_profiles \
     /watch \
     /data && \
-    chown -R appuser:appuser /etc/immich-optimizer /watch /data
+    chown -R appuser:appuser /etc/immich-optimizer /custom_profiles /watch /data
 
 # Copy configuration files
 COPY --chown=appuser:appuser config/standard/lossless /etc/immich-optimizer/config
@@ -86,7 +87,7 @@ LABEL \
     org.opencontainers.image.documentation="https://github.com/zivshek/immich-optimizer"
 
 # Set environment variables
-ENV IUO_TASKS_FILE=/etc/immich-optimizer/config/tasks.yaml \
+ENV IUO_TASKS_FILE=/etc/immich-optimizer/bundled-configs/standard/lossless/tasks.yaml \
     IUO_WATCH_DIR=/watch \
     IUO_DASHBOARD_ADDRESS=:8098 \
     IUO_STATS_DATABASE=/data/immich-optimizer.db

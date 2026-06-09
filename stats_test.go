@@ -91,3 +91,26 @@ func TestStatsStoreMigratesJobColumns(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestStatsStorePersistsIndependentMediaTaskConfigs(t *testing.T) {
+	store, err := NewStatsStore(filepath.Join(t.TempDir(), "stats.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	if err := store.RecordMediaTaskConfigSelection("alice", "image", "images/webp"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RecordMediaTaskConfigSelection("alice", "video", "videos/svt-av1"); err != nil {
+		t.Fatal(err)
+	}
+	imageConfig, err := store.SelectedMediaTaskConfig("alice", "image")
+	if err != nil || imageConfig != "images/webp" {
+		t.Fatalf("unexpected image config: %q, %v", imageConfig, err)
+	}
+	videoConfig, err := store.SelectedMediaTaskConfig("alice", "video")
+	if err != nil || videoConfig != "videos/svt-av1" {
+		t.Fatalf("unexpected video config: %q, %v", videoConfig, err)
+	}
+}

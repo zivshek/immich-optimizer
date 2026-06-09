@@ -21,15 +21,15 @@ type FileWatcher struct {
 	fd             int            // inotify file descriptor
 	watchDir       string         // root directory to watch
 	immichClient   *ImmichClient  // client for uploading to Immich
-	config         *Config        // processing configuration
+	config         *Config        // startup fallback processing configuration
 	logger         *log.Logger    // logger instance
 	watchMap       map[string]int // maps directory paths to watch descriptors
 	bufferSize     int            // buffer size for reading inotify events
 	profile        *ProfileConfig // profile-specific directories and tasks
 	statsStore     *StatsStore
 	configMu       sync.RWMutex
-	configName     string
-	configFile     string
+	imageConfig    taskConfigSelection
+	videoConfig    taskConfigSelection
 	semaphore      chan struct{} // shared application concurrency limit
 	stopOnce       sync.Once
 	processing     sync.Map // tracks files actively being processed to avoid duplicate concurrent tasks
@@ -61,32 +61,47 @@ func NewFileWatcher(profile *ProfileConfig, immichClient *ImmichClient, logger *
 		profile:      profile,
 		semaphore:    semaphore,
 		statsStore:   statsStore,
-		configName:   profile.ConfigFile,
-		configFile:   profile.ConfigFile,
+		imageConfig:  taskConfigSelection{Config: profile.Tasks, File: profile.ConfigFile, Name: profile.ConfigFile},
+		videoConfig:  taskConfigSelection{Config: profile.Tasks, File: profile.ConfigFile, Name: profile.ConfigFile},
 	}
 
 	return fw, nil
 }
 
-func (fw *FileWatcher) activeConfig() (*Config, string) {
-	fw.configMu.RLock()
-	defer fw.configMu.RUnlock()
-	return fw.config, fw.configFile
+type taskConfigSelection struct {
+	Config *Config
+	File   string
+	Name   string
 }
 
-func (fw *FileWatcher) currentConfigName() string {
+func (fw *FileWatcher) activeConfig(mediaType string) taskConfigSelection {
 	fw.configMu.RLock()
 	defer fw.configMu.RUnlock()
-	return fw.configName
+	if mediaType == mediaTypeVideo {
+		return fw.videoConfig
+	}
+	return fw.imageConfig
 }
 
-func (fw *FileWatcher) setConfig(config *Config, configFile, configName string) {
+func (fw *FileWatcher) currentConfigName(mediaType string) string {
+	fw.configMu.RLock()
+	defer fw.configMu.RUnlock()
+	if mediaType == mediaTypeVideo {
+		return fw.videoConfig.Name
+	}
+	return fw.imageConfig.Name
+}
+
+func (fw *FileWatcher) setConfig(mediaType string, config *Config, configFile, configName string) {
 	fw.configMu.Lock()
 	defer fw.configMu.Unlock()
-	fw.config = config
-	fw.configName = configName
-	fw.configFile = configFile
-	fw.logger.Printf("Profile %s: selected bundled task config %s", fw.profile.Name, configName)
+	selection := taskConfigSelection{Config: config, File: configFile, Name: configName}
+	if mediaType == mediaTypeVideo {
+		fw.videoConfig = selection
+	} else {
+		fw.imageConfig = selection
+	}
+	fw.logger.Printf("Profile %s: selected %s task config %s", fw.profile.Name, mediaType, configName)
 }
 
 // Start begins monitoring the directory for file changes

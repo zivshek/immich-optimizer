@@ -8,4 +8,5 @@ services:
     volumes:
       - ./watch:/watch
       - ./undone:/undone
+      - ./custom_profiles:/custom_profiles
     restart: unless-stopped

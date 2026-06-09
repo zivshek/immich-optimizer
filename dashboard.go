@@ -93,13 +93,20 @@ func (dashboard *DashboardServer) handleTaskConfigs(w http.ResponseWriter, _ *ht
 
 func (dashboard *DashboardServer) handleSelectTaskConfig(w http.ResponseWriter, request *http.Request) {
 	var selection struct {
-		Config string `json:"config"`
+		ImageConfig string `json:"image_config"`
+		VideoConfig string `json:"video_config"`
 	}
-	if err := json.NewDecoder(request.Body).Decode(&selection); err != nil || strings.TrimSpace(selection.Config) == "" {
-		http.Error(w, "config is required", http.StatusBadRequest)
+	if err := json.NewDecoder(request.Body).Decode(&selection); err != nil ||
+		strings.TrimSpace(selection.ImageConfig) == "" || strings.TrimSpace(selection.VideoConfig) == "" {
+		http.Error(w, "image_config and video_config are required", http.StatusBadRequest)
 		return
 	}
-	if err := dashboard.configs.Select(request.PathValue("profile"), selection.Config); err != nil {
+	profile := request.PathValue("profile")
+	if err := dashboard.configs.Select(profile, mediaTypeImage, selection.ImageConfig); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := dashboard.configs.Select(profile, mediaTypeVideo, selection.VideoConfig); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -198,7 +205,7 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:9px;bord
 <div class="card"><div class="label">Total Reduction</div><div class="value good" id="reduction">0%</div></div>
 </section>
 <section class="dashboard-section">
-<div class="panel"><div class="panel-header"><h2>Task Configurations</h2><span class="config-status" id="config-status"></span></div><table><thead><tr><th>Profile</th><th>Bundled Config</th><th></th></tr></thead><tbody id="task-configs"></tbody></table></div>
+<div class="panel"><div class="panel-header"><h2>Media Configurations</h2><span class="config-status" id="config-status"></span></div><table><thead><tr><th>Profile</th><th>Image Config</th><th>Video Config</th><th></th></tr></thead><tbody id="task-configs"></tbody></table></div>
 </section>
 <section class="dashboard-section">
 <div class="panel"><div class="panel-header"><h2>Recent Jobs</h2></div><table><thead><tr><th>Time</th><th>Profile</th><th>File</th><th>Resolution</th><th>Original Size</th><th>Compressed Size</th><th>Saved</th><th>Action</th><th>Reduction</th></tr></thead><tbody id="recent"></tbody></table><div class="pagination"><button id="previous-page" type="button">Previous</button><span id="page-label">Page 1 of 1</span><button id="next-page" type="button">Next</button></div></div>
@@ -227,9 +234,9 @@ copyLog.addEventListener('click',async()=>{
 });
 taskConfigs.addEventListener('click',async event=>{
  const button=event.target.closest('.apply-config');if(!button)return;
- const select=document.getElementById('config-'+button.dataset.index);
+ const imageSelect=document.getElementById('image-config-'+button.dataset.index),videoSelect=document.getElementById('video-config-'+button.dataset.index);
  configStatus.textContent='Applying...';
- const response=await fetch('/api/task-configs/'+encodeURIComponent(button.dataset.profile),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({config:select.value})});
+ const response=await fetch('/api/task-configs/'+encodeURIComponent(button.dataset.profile),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({image_config:imageSelect.value,video_config:videoSelect.value})});
  configStatus.textContent=response.ok?'Applied to future jobs':(await response.text()).trim();
  await refreshTaskConfigs();
 });
@@ -244,7 +251,7 @@ recent.addEventListener('click',async event=>{
 async function refreshTaskConfigs(){
  if(document.activeElement&&document.activeElement.classList.contains('config-select'))return;
  const profiles=await fetch('/api/task-configs').then(x=>x.json());
- taskConfigs.innerHTML=profiles.map((p,i)=>'<tr><td>'+esc(p.profile)+'</td><td><select class="config-select" id="config-'+i+'">'+p.configs.map(c=>'<option value="'+esc(c.name)+'"'+(c.name===p.current?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select></td><td><button class="apply-config" data-index="'+i+'" data-profile="'+esc(p.profile)+'" type="button">Apply</button></td></tr>').join('');
+ taskConfigs.innerHTML=profiles.map((p,i)=>'<tr><td>'+esc(p.profile)+'</td><td><select class="config-select" id="image-config-'+i+'">'+p.image_configs.map(c=>'<option value="'+esc(c.name)+'"'+(c.name===p.image_current?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select></td><td><select class="config-select" id="video-config-'+i+'">'+p.video_configs.map(c=>'<option value="'+esc(c.name)+'"'+(c.name===p.video_current?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select></td><td><button class="apply-config" data-index="'+i+'" data-profile="'+esc(p.profile)+'" type="button">Apply</button></td></tr>').join('');
 }
 async function refresh(){
  const [s,r,l]=await Promise.all([fetch('/api/stats').then(x=>x.json()),fetch('/api/recent?page='+currentPage).then(x=>x.json()),fetch('/api/logs').then(x=>x.json()),refreshTaskConfigs()]);

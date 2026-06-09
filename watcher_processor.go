@@ -64,9 +64,10 @@ func (fw *FileWatcher) processFile(originalFilePath string) {
 	}
 
 	fw.logger.Printf("Processing file: %s", originalFilePath)
-	activeConfig, configFile := fw.activeConfig()
+	mediaType := mediaTypeForExtension(filepath.Ext(originalFilePath))
+	active := fw.activeConfig(mediaType)
 
-	if !fw.shouldOptimizeFile(originalFilePath, activeConfig) {
+	if !fw.shouldOptimizeFile(originalFilePath, active.Config) {
 		if fw.uploadToImmich(originalFilePath) {
 			size := fileSize(originalFilePath)
 			fw.recordProcessed(filepath.Base(originalFilePath), originalFilePath, size, size)
@@ -75,7 +76,7 @@ func (fw *FileWatcher) processFile(originalFilePath string) {
 		return
 	}
 
-	tp, err := fw.createTaskProcessor(originalFilePath, configFile)
+	tp, err := fw.createTaskProcessor(originalFilePath, active.File)
 	if err != nil {
 		fw.logger.Printf("Error creating task processor for %s: %v", originalFilePath, err)
 		fw.recordFailure(filepath.Base(originalFilePath), originalFilePath, err)
@@ -83,7 +84,7 @@ func (fw *FileWatcher) processFile(originalFilePath string) {
 	}
 	defer tp.Close()
 
-	if err := tp.Process(activeConfig.Tasks); err != nil {
+	if err := tp.Process(active.Config.Tasks); err != nil {
 		fw.handleProcessingError(originalFilePath, err)
 		return
 	}

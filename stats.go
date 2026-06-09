@@ -97,6 +97,19 @@ func (store *StatsStore) init() error {
 			config_name TEXT NOT NULL,
 			selected_at DATETIME NOT NULL
 		);
+		CREATE TABLE IF NOT EXISTS media_task_config_usage (
+			media_type TEXT NOT NULL,
+			config_name TEXT NOT NULL,
+			last_used DATETIME NOT NULL,
+			PRIMARY KEY (media_type, config_name)
+		);
+		CREATE TABLE IF NOT EXISTS profile_media_task_configs (
+			profile TEXT NOT NULL,
+			media_type TEXT NOT NULL,
+			config_name TEXT NOT NULL,
+			selected_at DATETIME NOT NULL,
+			PRIMARY KEY (profile, media_type)
+		);
 	`)
 	if err != nil {
 		return fmt.Errorf("initialize statistics database: %w", err)
@@ -114,6 +127,69 @@ func (store *StatsStore) init() error {
 		}
 	}
 	return nil
+}
+
+func (store *StatsStore) RecordMediaTaskConfigSelection(profile, mediaType, configName string) error {
+	now := time.Now().UTC()
+	tx, err := store.db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin media task config selection: %w", err)
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`
+		INSERT INTO profile_media_task_configs (profile, media_type, config_name, selected_at)
+		VALUES (?, ?, ?, ?)
+		ON CONFLICT(profile, media_type) DO UPDATE SET config_name = excluded.config_name, selected_at = excluded.selected_at
+	`, profile, mediaType, configName, now); err != nil {
+		return fmt.Errorf("record profile media task config: %w", err)
+	}
+	if _, err := tx.Exec(`
+		INSERT INTO media_task_config_usage (media_type, config_name, last_used)
+		VALUES (?, ?, ?)
+		ON CONFLICT(media_type, config_name) DO UPDATE SET last_used = excluded.last_used
+	`, mediaType, configName, now); err != nil {
+		return fmt.Errorf("record media task config usage: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit media task config selection: %w", err)
+	}
+	return nil
+}
+
+func (store *StatsStore) SelectedMediaTaskConfig(profile, mediaType string) (string, error) {
+	var configName string
+	err := store.db.QueryRow(`
+		SELECT config_name FROM profile_media_task_configs
+		WHERE profile = ? AND media_type = ?
+	`, profile, mediaType).Scan(&configName)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("query selected media task config: %w", err)
+	}
+	return configName, nil
+}
+
+func (store *StatsStore) MediaTaskConfigUsage(mediaType string) (map[string]time.Time, error) {
+	rows, err := store.db.Query(`
+		SELECT config_name, last_used FROM media_task_config_usage
+		WHERE media_type = ?
+	`, mediaType)
+	if err != nil {
+		return nil, fmt.Errorf("query media task config usage: %w", err)
+	}
+	defer rows.Close()
+	usage := make(map[string]time.Time)
+	for rows.Next() {
+		var name string
+		var lastUsed time.Time
+		if err := rows.Scan(&name, &lastUsed); err != nil {
+			return nil, fmt.Errorf("scan media task config usage: %w", err)
+		}
+		usage[name] = lastUsed
+	}
+	return usage, rows.Err()
 }
 
 func (store *StatsStore) RecordTaskConfigSelection(profile, configName string) error {

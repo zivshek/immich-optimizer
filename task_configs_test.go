@@ -8,17 +8,30 @@ import (
 	"testing"
 )
 
-func TestTaskConfigRegistrySelectsAndOrdersRecentConfigs(t *testing.T) {
+func TestTaskConfigRegistrySelectsImageAndVideoConfigsIndependently(t *testing.T) {
 	root := t.TempDir()
-	for _, name := range []string{"standard/zeta", "standard/alpha"} {
-		dir := filepath.Join(root, filepath.FromSlash(name))
-		if err := os.MkdirAll(dir, 0750); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(dir, "tasks.yaml"), []byte("tasks: []\n"), 0600); err != nil {
-			t.Fatal(err)
-		}
-	}
+	writeTestTaskConfig(t, root, "standard/alpha", []byte(`
+tasks:
+  - name: images
+    command: ""
+    extensions: [jpg]
+  - name: videos
+    command: ""
+    extensions: [mp4]
+`))
+	writeTestTaskConfig(t, root, "standard/zeta", []byte(`
+tasks:
+  - name: videos
+    command: ""
+    extensions: [mp4]
+`))
+	customRoot := t.TempDir()
+	writeTestTaskConfig(t, customRoot, "my-profile", []byte(`
+tasks:
+  - name: images
+    command: ""
+    extensions: [jpg]
+`))
 
 	store, err := NewStatsStore(filepath.Join(t.TempDir(), "stats.db"))
 	if err != nil {
@@ -26,9 +39,18 @@ func TestTaskConfigRegistrySelectsAndOrdersRecentConfigs(t *testing.T) {
 	}
 	defer store.Close()
 
-	profile := &ProfileConfig{Name: "alice", ConfigFile: filepath.Join(root, "standard", "alpha", "tasks.yaml"), Tasks: &Config{}}
-	watcher := &FileWatcher{profile: profile, config: profile.Tasks, configFile: profile.ConfigFile, configName: profile.ConfigFile, logger: log.New(io.Discard, "", 0)}
-	registry := NewTaskConfigRegistry(root, store)
+	configFile := filepath.Join(root, "standard", "alpha", "tasks.yaml")
+	startupConfig, err := NewConfig(&configFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile := &ProfileConfig{Name: "alice", ConfigFile: configFile, Tasks: startupConfig}
+	watcher := &FileWatcher{
+		profile: profile, config: profile.Tasks, logger: log.New(io.Discard, "", 0),
+		imageConfig: taskConfigSelection{Config: profile.Tasks, File: profile.ConfigFile, Name: profile.ConfigFile},
+		videoConfig: taskConfigSelection{Config: profile.Tasks, File: profile.ConfigFile, Name: profile.ConfigFile},
+	}
+	registry := NewTaskConfigRegistry(root, customRoot, store)
 	if err := registry.Register(watcher); err != nil {
 		t.Fatal(err)
 	}
@@ -37,22 +59,46 @@ func TestTaskConfigRegistrySelectsAndOrdersRecentConfigs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if profiles[0].Current != "standard/alpha" || profiles[0].Configs[0].Name != "standard/alpha" {
+	if profiles[0].ImageCurrent != "standard/alpha" || profiles[0].VideoCurrent != "standard/alpha" {
 		t.Fatalf("unexpected initial configs: %+v", profiles)
 	}
+	if len(profiles[0].ImageConfigs) != 2 || profiles[0].ImageConfigs[0].Name != "custom/my-profile" {
+		t.Fatalf("unexpected image configs: %+v", profiles[0].ImageConfigs)
+	}
+	if len(profiles[0].VideoConfigs) != 2 || profiles[0].VideoConfigs[0].Name != "standard/alpha" {
+		t.Fatalf("unexpected video configs: %+v", profiles[0].VideoConfigs)
+	}
 
-	if err := registry.Select("alice", "standard/zeta"); err != nil {
+	if err := registry.Select("alice", mediaTypeImage, "custom/my-profile"); err != nil {
+		t.Fatal(err)
+	}
+	if err := registry.Select("alice", mediaTypeVideo, "standard/zeta"); err != nil {
 		t.Fatal(err)
 	}
 	profiles, err = registry.List()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if profiles[0].Current != "standard/zeta" || profiles[0].Configs[0].Name != "standard/zeta" {
-		t.Fatalf("recent config was not promoted: %+v", profiles)
+	if profiles[0].ImageCurrent != "custom/my-profile" || profiles[0].VideoCurrent != "standard/zeta" {
+		t.Fatalf("independent selections were not applied: %+v", profiles)
 	}
-	selected, err := store.SelectedTaskConfig("alice")
-	if err != nil || selected != "standard/zeta" {
-		t.Fatalf("selection was not persisted: %q, %v", selected, err)
+	imageSelected, err := store.SelectedMediaTaskConfig("alice", mediaTypeImage)
+	if err != nil || imageSelected != "custom/my-profile" {
+		t.Fatalf("image selection was not persisted: %q, %v", imageSelected, err)
+	}
+	videoSelected, err := store.SelectedMediaTaskConfig("alice", mediaTypeVideo)
+	if err != nil || videoSelected != "standard/zeta" {
+		t.Fatalf("video selection was not persisted: %q, %v", videoSelected, err)
+	}
+}
+
+func writeTestTaskConfig(t *testing.T, root, name string, contents []byte) {
+	t.Helper()
+	dir := filepath.Join(root, filepath.FromSlash(name))
+	if err := os.MkdirAll(dir, 0750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "tasks.yaml"), contents, 0600); err != nil {
+		t.Fatal(err)
 	}
 }
