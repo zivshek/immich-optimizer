@@ -235,6 +235,10 @@ RUN set -eux; \
     grep '\.path = "../fssimu2"' build.zig.zon; \
     zig build --release=fast --search-prefix ${INSTALL_PREFIX}; \
     install -m 755 zig-out/bin/oavif /usr/local/bin/oavif; \
+    cd /build/fssimu2; \
+    zig build --release=fast --search-prefix ${INSTALL_PREFIX}; \
+    install -m 755 zig-out/bin/fssimu2 /usr/local/bin/fssimu2; \
+    /usr/local/bin/fssimu2 --version; \
     /usr/local/bin/oavif --version
 
 FROM debian:trixie-slim
@@ -274,8 +278,10 @@ COPY --from=ab-av1-builder /out/bin/ab-av1 /usr/local/bin/ab-av1
 COPY --from=ab-ffmpeg-builder /opt/ab-av1 /opt/ab-av1
 COPY --from=oavif-builder /build/install/ /build
 COPY --from=oavif-builder /usr/local/bin/oavif /usr/local/bin/oavif
+COPY --from=oavif-builder /usr/local/bin/fssimu2 /usr/local/bin/fssimu2
 ENV LD_LIBRARY_PATH=/build/lib:/opt/ab-av1/lib
 RUN oavif --version && \
+    fssimu2 --version && \
     ab-av1 --version && \
     /opt/ab-av1/bin/ffmpeg -hide_banner -filters | grep libvmaf && \
     /opt/ab-av1/bin/ffmpeg -hide_banner -encoders | grep libsvtav1 && \

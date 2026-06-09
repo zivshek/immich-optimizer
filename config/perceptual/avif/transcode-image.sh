@@ -5,7 +5,7 @@ src=$1
 dst=$2
 
 oavif \
-  --score-tgt 85 \
+  --score-tgt 90 \
   --tolerance 2 \
   --max-threads 8 \
   "$src" "$dst"

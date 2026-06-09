@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 )
 
@@ -125,6 +126,26 @@ func TestBundledPerceptualConfigsAreSinglePurpose(t *testing.T) {
 	for i := range expected {
 		if names[i] != expected[i] {
 			t.Fatalf("unexpected perceptual configs: %v", names)
+		}
+	}
+}
+
+func TestPerceptualImagesTargetSsimulacra2Score90(t *testing.T) {
+	avifScript, err := os.ReadFile(filepath.Join("config", "perceptual", "avif", "transcode-image.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(avifScript), "--score-tgt 90") {
+		t.Fatal("perceptual AVIF does not target SSIMULACRA2 90")
+	}
+
+	webpScript, err := os.ReadFile(filepath.Join("config", "perceptual", "webp", "transcode-image.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, expected := range []string{"target_score=90", "fssimu2", "selected WebP quality"} {
+		if !strings.Contains(string(webpScript), expected) {
+			t.Fatalf("perceptual WebP script is missing %q", expected)
 		}
 	}
 }
