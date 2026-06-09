@@ -243,6 +243,9 @@ FROM oavif-builder AS fssimu2-builder
 RUN set -eux; \
     git clone --depth 1 --branch "${FSSIMU2_VERSION}" https://github.com/gianni-rosato/fssimu2.git /build/fssimu2-cli; \
     cd /build/fssimu2-cli; \
+    sed -i '/bin.linkSystemLibrary("avif");/a\    bin.root_module.linkSystemLibrary("heif", .{ .preferred_link_mode = .static });\n    bin.root_module.linkSystemLibrary("aom", .{ .preferred_link_mode = .static });' build.zig; \
+    grep 'linkSystemLibrary("heif"' build.zig; \
+    grep 'linkSystemLibrary("aom"' build.zig; \
     zig build --release=fast --search-prefix ${INSTALL_PREFIX}; \
     install -m 755 zig-out/bin/fssimu2 /usr/local/bin/fssimu2; \
     /usr/local/bin/fssimu2 --version
