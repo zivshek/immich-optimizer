@@ -64,8 +64,9 @@ func (fw *FileWatcher) processFile(originalFilePath string) {
 	}
 
 	fw.logger.Printf("Processing file: %s", originalFilePath)
+	activeConfig, configFile := fw.activeConfig()
 
-	if !fw.shouldOptimizeFile(originalFilePath) {
+	if !fw.shouldOptimizeFile(originalFilePath, activeConfig) {
 		if fw.uploadToImmich(originalFilePath) {
 			size := fileSize(originalFilePath)
 			fw.recordProcessed(filepath.Base(originalFilePath), originalFilePath, size, size)
@@ -74,7 +75,7 @@ func (fw *FileWatcher) processFile(originalFilePath string) {
 		return
 	}
 
-	tp, err := fw.createTaskProcessor(originalFilePath)
+	tp, err := fw.createTaskProcessor(originalFilePath, configFile)
 	if err != nil {
 		fw.logger.Printf("Error creating task processor for %s: %v", originalFilePath, err)
 		fw.recordFailure(filepath.Base(originalFilePath), originalFilePath, err)
@@ -82,7 +83,7 @@ func (fw *FileWatcher) processFile(originalFilePath string) {
 	}
 	defer tp.Close()
 
-	if err := tp.Process(fw.config.Tasks); err != nil {
+	if err := tp.Process(activeConfig.Tasks); err != nil {
 		fw.handleProcessingError(originalFilePath, err)
 		return
 	}
@@ -103,9 +104,9 @@ func (fw *FileWatcher) validateFile(filePath string) bool {
 }
 
 // shouldOptimizeFile determines if a file should be processed for optimization
-func (fw *FileWatcher) shouldOptimizeFile(filePath string) bool {
+func (fw *FileWatcher) shouldOptimizeFile(filePath string, config *Config) bool {
 	extension := filepath.Ext(filePath)
-	if !shouldProcessExtension(extension, fw.config.Tasks) {
+	if !shouldProcessExtension(extension, config.Tasks) {
 		fw.logger.Printf("Skipping file %s (extension %s not configured for processing)", filePath, extension)
 		return false
 	}
@@ -113,7 +114,7 @@ func (fw *FileWatcher) shouldOptimizeFile(filePath string) bool {
 }
 
 // createTaskProcessor creates and configures a new task processor for the file
-func (fw *FileWatcher) createTaskProcessor(filePath string) (*TaskProcessor, error) {
+func (fw *FileWatcher) createTaskProcessor(filePath, configFile string) (*TaskProcessor, error) {
 	tp, err := NewTaskProcessor(filePath)
 	if err != nil {
 		return nil, err
@@ -122,8 +123,8 @@ func (fw *FileWatcher) createTaskProcessor(filePath string) (*TaskProcessor, err
 	jobLogger := newCustomLogger(fw.logger, fmt.Sprintf("file %s: ", filePath))
 	tp.SetLogger(jobLogger)
 
-	if fw.profile != nil {
-		tp.SetConfigDir(filepath.Dir(fw.profile.ConfigFile))
+	if configFile != "" {
+		tp.SetConfigDir(filepath.Dir(configFile))
 	}
 
 	return tp, nil
@@ -173,6 +174,19 @@ func (fw *FileWatcher) uploadProcessedFile(originalFilePath string, tp *TaskProc
 	return true
 }
 
+func (fw *FileWatcher) recordFailure(filename, originalFilePath string, jobError error) {
+	if fw.statsStore == nil {
+		return
+	}
+	profileName := ""
+	if fw.profile != nil {
+		profileName = fw.profile.Name
+	}
+	if err := fw.statsStore.RecordFailure(profileName, filename, mediaResolution(originalFilePath), fileSize(originalFilePath), jobError); err != nil {
+		fw.logger.Printf("Error recording failed job for %s: %v", filename, err)
+	}
+}
+
 // uploadOriginalFile uploads the original file without optimization
 func (fw *FileWatcher) uploadOriginalFile(filePath string) bool {
 	fw.logger.Printf("Original file uploaded (no optimization achieved)")
@@ -198,19 +212,6 @@ func (fw *FileWatcher) recordProcessed(filename, originalFilePath string, origin
 	resolution := mediaResolution(originalFilePath)
 	if err := fw.statsStore.Record(fw.profile.Name, filename, resolution, originalBytes, uploadedBytes); err != nil {
 		fw.logger.Printf("Error recording statistics for %s: %v", filename, err)
-	}
-}
-
-func (fw *FileWatcher) recordFailure(filename, originalFilePath string, jobError error) {
-	if fw.statsStore == nil {
-		return
-	}
-	profileName := ""
-	if fw.profile != nil {
-		profileName = fw.profile.Name
-	}
-	if err := fw.statsStore.RecordFailure(profileName, filename, mediaResolution(originalFilePath), fileSize(originalFilePath), jobError); err != nil {
-		fw.logger.Printf("Error recording failed job for %s: %v", filename, err)
 	}
 }
 

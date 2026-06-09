@@ -80,7 +80,7 @@ LABEL org.opencontainers.image.title="Immich Optimizer" \
       org.opencontainers.image.source="https://github.com/zivshek/immich-optimizer" \
       org.opencontainers.image.licenses="MIT"
 
-ENV IUO_TASKS_FILE=/etc/immich-optimizer/config/tasks.yaml \
+ENV IUO_TASKS_FILE=/etc/immich-optimizer/bundled-configs/standard/lossless/tasks.yaml \
     IUO_WATCH_DIR=/watch \
     IUO_UNDONE_DIR=/undone \
     IUO_DASHBOARD_ADDRESS=:8098 \

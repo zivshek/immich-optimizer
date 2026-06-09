@@ -88,6 +88,15 @@ func (store *StatsStore) init() error {
 		);
 		CREATE INDEX IF NOT EXISTS idx_processed_assets_processed_at
 			ON processed_assets(processed_at DESC);
+		CREATE TABLE IF NOT EXISTS task_config_usage (
+			config_name TEXT PRIMARY KEY,
+			last_used DATETIME NOT NULL
+		);
+		CREATE TABLE IF NOT EXISTS profile_task_configs (
+			profile TEXT PRIMARY KEY,
+			config_name TEXT NOT NULL,
+			selected_at DATETIME NOT NULL
+		);
 	`)
 	if err != nil {
 		return fmt.Errorf("initialize statistics database: %w", err)
@@ -105,6 +114,63 @@ func (store *StatsStore) init() error {
 		}
 	}
 	return nil
+}
+
+func (store *StatsStore) RecordTaskConfigSelection(profile, configName string) error {
+	now := time.Now().UTC()
+	tx, err := store.db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin task config selection: %w", err)
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`
+		INSERT INTO profile_task_configs (profile, config_name, selected_at)
+		VALUES (?, ?, ?)
+		ON CONFLICT(profile) DO UPDATE SET config_name = excluded.config_name, selected_at = excluded.selected_at
+	`, profile, configName, now); err != nil {
+		return fmt.Errorf("record profile task config: %w", err)
+	}
+	if _, err := tx.Exec(`
+		INSERT INTO task_config_usage (config_name, last_used)
+		VALUES (?, ?)
+		ON CONFLICT(config_name) DO UPDATE SET last_used = excluded.last_used
+	`, configName, now); err != nil {
+		return fmt.Errorf("record task config usage: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit task config selection: %w", err)
+	}
+	return nil
+}
+
+func (store *StatsStore) SelectedTaskConfig(profile string) (string, error) {
+	var configName string
+	err := store.db.QueryRow(`SELECT config_name FROM profile_task_configs WHERE profile = ?`, profile).Scan(&configName)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("query selected task config: %w", err)
+	}
+	return configName, nil
+}
+
+func (store *StatsStore) TaskConfigUsage() (map[string]time.Time, error) {
+	rows, err := store.db.Query(`SELECT config_name, last_used FROM task_config_usage`)
+	if err != nil {
+		return nil, fmt.Errorf("query task config usage: %w", err)
+	}
+	defer rows.Close()
+	usage := make(map[string]time.Time)
+	for rows.Next() {
+		var name string
+		var lastUsed time.Time
+		if err := rows.Scan(&name, &lastUsed); err != nil {
+			return nil, fmt.Errorf("scan task config usage: %w", err)
+		}
+		usage[name] = lastUsed
+	}
+	return usage, rows.Err()
 }
 
 func (store *StatsStore) Close() error {

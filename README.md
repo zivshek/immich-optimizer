@@ -105,7 +105,6 @@ services:
       - IUO_IMMICH_URL=http://immich-server:2283
       - IUO_IMMICH_API_KEY=your-api-key
       - IUO_WATCH_DIR=/watch
-      - IUO_TASKS_FILE=/etc/immich-optimizer/config/tasks.yaml
     volumes:
       - /path/to/watch:/watch
       - /path/to/undone:/undone
@@ -122,6 +121,15 @@ statistics survive container recreation. The dashboard records only successful
 Immich uploads in its totals. Recent Jobs shows successful and failed attempts
 in pages of 10; failed rows are red and do not affect statistics. Individual
 history rows can be deleted from the dashboard.
+
+The dashboard lists every `tasks.yaml` found below
+`/etc/immich-optimizer/bundled-configs` and lets each ingestion profile switch
+to a different bundled task config. Recently selected configs appear first,
+followed by the remaining folder names alphabetically. Changes apply only to
+jobs started after clicking **Apply** and persist in the SQLite database across
+container restarts. `IUO_TASKS_FILE` remains the startup fallback, so the
+published image default can be used without setting it explicitly. Set
+`IUO_BUNDLED_CONFIGS_DIR` only when using a different bundled-config root.
 
 The dashboard does not currently provide authentication. Keep port `8098` on a
 trusted network or place it behind an authenticated reverse proxy. When using a
@@ -338,7 +346,8 @@ RUN set -eux; \
 | `IUO_IMMICH_API_KEY` | Immich API key (required) | - |
 | `IUO_WATCH_DIR` | Directory to watch for files | `/watch` |
 | `IUO_UNDONE_DIR` | Directory for files that failed processing/upload | `/undone` |
-| `IUO_TASKS_FILE` | Path to tasks configuration | `tasks.yaml` |
+| `IUO_TASKS_FILE` | Startup fallback task configuration | `/etc/immich-optimizer/bundled-configs/standard/lossless/tasks.yaml` in the published images |
+| `IUO_BUNDLED_CONFIGS_DIR` | Root directory scanned for dashboard-selectable task configurations | `/etc/immich-optimizer/bundled-configs` |
 | `IUO_PROFILES` | Comma-separated profile names configured through environment variables | - |
 | `IUO_PROFILES_CONFIG` | Inline YAML profile list for Docker Compose and Dockge | - |
 | `IUO_PROFILES_FILE` | Path to multi-user profiles configuration; enables profile mode | - |

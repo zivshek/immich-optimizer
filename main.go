@@ -34,6 +34,7 @@ type AppConfig struct {
 	ProfilesFile          string
 	DashboardAddress      string
 	StatsDatabase         string
+	BundledConfigsDir     string
 	MaxConcurrentRequests int
 	HTTPTimeoutSeconds    int
 	InotifyBufferSize     int
@@ -67,6 +68,7 @@ func loadAppConfig() (*AppConfig, error) {
 	viper.BindEnv("profiles_config")
 	viper.BindEnv("dashboard_address")
 	viper.BindEnv("stats_database")
+	viper.BindEnv("bundled_configs_dir")
 
 	viper.SetDefault("immich_url", "")
 	viper.SetDefault("immich_api_key", "")
@@ -78,6 +80,7 @@ func loadAppConfig() (*AppConfig, error) {
 	viper.SetDefault("profiles_config", "")
 	viper.SetDefault("dashboard_address", ":8098")
 	viper.SetDefault("stats_database", "/data/immich-optimizer.db")
+	viper.SetDefault("bundled_configs_dir", "/etc/immich-optimizer/bundled-configs")
 
 	flag.BoolVar(&appConfig.ShowVersion, "version", false, "Show the current version")
 	flag.StringVar(&appConfig.ImmichURL, "immich_url", viper.GetString("immich_url"), "Immich server URL. Example: http://immich-server:2283")
@@ -90,6 +93,7 @@ func loadAppConfig() (*AppConfig, error) {
 	flag.StringVar(&appConfig.ProfilesInlineConfig, "profiles_config", viper.GetString("profiles_config"), "Inline YAML multi-user profiles configuration")
 	flag.StringVar(&appConfig.DashboardAddress, "dashboard_address", viper.GetString("dashboard_address"), "Dashboard listen address")
 	flag.StringVar(&appConfig.StatsDatabase, "stats_database", viper.GetString("stats_database"), "SQLite statistics database path")
+	flag.StringVar(&appConfig.BundledConfigsDir, "bundled_configs_dir", viper.GetString("bundled_configs_dir"), "Directory containing bundled task configurations")
 	flag.Parse()
 
 	if appConfig.ShowVersion {
@@ -238,9 +242,7 @@ func main() {
 	}
 	defer statsStore.Close()
 
-	dashboard := NewDashboardServer(config.DashboardAddress, statsStore, logBuffer, logOutput)
-	dashboard.Start()
-	defer dashboard.Close()
+	configRegistry := NewTaskConfigRegistry(config.BundledConfigsDir, statsStore)
 
 	var watchers []*FileWatcher
 	for i := range config.Profiles {
@@ -254,6 +256,9 @@ func main() {
 			stopWatchers(watchers)
 			os.Exit(1)
 		}
+		if err := configRegistry.Register(watcher); err != nil {
+			customLogger.Printf("Error restoring task config for profile %s: %v", profile.Name, err)
+		}
 		if err := watcher.Start(); err != nil {
 			customLogger.Printf("Error starting watcher for profile %s: %v", profile.Name, err)
 			watcher.Stop()
@@ -263,6 +268,10 @@ func main() {
 		watchers = append(watchers, watcher)
 	}
 	defer stopWatchers(watchers)
+
+	dashboard := NewDashboardServer(config.DashboardAddress, statsStore, configRegistry, logBuffer, logOutput)
+	dashboard.Start()
+	defer dashboard.Close()
 
 	// Block until we receive our signal
 	<-sigChan

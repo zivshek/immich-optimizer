@@ -27,6 +27,9 @@ type FileWatcher struct {
 	bufferSize     int            // buffer size for reading inotify events
 	profile        *ProfileConfig // profile-specific directories and tasks
 	statsStore     *StatsStore
+	configMu       sync.RWMutex
+	configName     string
+	configFile     string
 	semaphore      chan struct{} // shared application concurrency limit
 	stopOnce       sync.Once
 	processing     sync.Map // tracks files actively being processed to avoid duplicate concurrent tasks
@@ -58,9 +61,32 @@ func NewFileWatcher(profile *ProfileConfig, immichClient *ImmichClient, logger *
 		profile:      profile,
 		semaphore:    semaphore,
 		statsStore:   statsStore,
+		configName:   profile.ConfigFile,
+		configFile:   profile.ConfigFile,
 	}
 
 	return fw, nil
+}
+
+func (fw *FileWatcher) activeConfig() (*Config, string) {
+	fw.configMu.RLock()
+	defer fw.configMu.RUnlock()
+	return fw.config, fw.configFile
+}
+
+func (fw *FileWatcher) currentConfigName() string {
+	fw.configMu.RLock()
+	defer fw.configMu.RUnlock()
+	return fw.configName
+}
+
+func (fw *FileWatcher) setConfig(config *Config, configFile, configName string) {
+	fw.configMu.Lock()
+	defer fw.configMu.Unlock()
+	fw.config = config
+	fw.configName = configName
+	fw.configFile = configFile
+	fw.logger.Printf("Profile %s: selected bundled task config %s", fw.profile.Name, configName)
 }
 
 // Start begins monitoring the directory for file changes
