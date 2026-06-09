@@ -156,6 +156,66 @@ function Get-VmafArguments {
     return @("--vmaf", "model=path=$modelPath")
 }
 
+function Find-NvencCq {
+    param(
+        [System.IO.FileInfo]$Source,
+        [string[]]$VmafArguments
+    )
+
+    $low = 1
+    $high = 40
+    $bestCq = $null
+    $fallbackCq = $null
+    $fallbackScore = -1.0
+    while ($low -le $high) {
+        $cq = [Math]::Floor(($low + $high) / 2)
+        Write-Host "Testing NVENC CQ $cq against VMAF $MinVmaf"
+        $arguments = @(
+            "sample-encode",
+            "--input", $Source.FullName,
+            "--encoder", "hevc_nvenc",
+            "--crf", "$cq",
+            "--pix-format", "yuv420p",
+            "--preset", "p7",
+            "--min-samples", "3",
+            "--sample-every", "8m",
+            "--sample-duration", "12s",
+            "--enc", "rc=vbr",
+            "--enc", "b:v=0",
+            "--enc", "spatial_aq=1",
+            "--enc", "rc-lookahead=32",
+            "--enc-input", "noautorotate"
+        ) + $VmafArguments
+        $sampleOutput = (& $AbAv1 @arguments 2>&1 | ForEach-Object { "$_" })
+        $sampleOutput | ForEach-Object { Write-Host $_ }
+        if ($LASTEXITCODE -ne 0) {
+            throw "ab-av1 sample-encode failed with exit code $LASTEXITCODE"
+        }
+        $scoreMatches = [regex]::Matches(($sampleOutput -join "`n"), 'VMAF\s+([0-9]+(?:\.[0-9]+)?)')
+        if ($scoreMatches.Count -eq 0) {
+            throw "Unable to read VMAF score for NVENC CQ $cq"
+        }
+        $score = [double]$scoreMatches[$scoreMatches.Count - 1].Groups[1].Value
+        if ($score -ge $fallbackScore) {
+            $fallbackCq = $cq
+            $fallbackScore = $score
+        }
+        if ($score -ge $MinVmaf) {
+            $bestCq = $cq
+            $low = $cq + 1
+        }
+        else {
+            $high = $cq - 1
+        }
+    }
+
+    if ($null -eq $bestCq) {
+        $bestCq = $fallbackCq
+        Write-Warning "NVENC could not meet VMAF $MinVmaf; using best measured CQ $bestCq at VMAF $fallbackScore"
+    }
+    return $bestCq
+}
+
 function Convert-Video {
     param([System.IO.FileInfo]$Source)
 
@@ -176,27 +236,25 @@ function Convert-Video {
     $env:AB_AV1_TEMP_DIR = $workDirectory
 
     try {
-        $arguments = @(
-            "auto-encode",
-            "--input", $Source.FullName,
-            "--output", $videoOnly,
-            "--video-only",
-            "--encoder", "hevc_nvenc",
-            "--pix-format", "yuv420p",
-            "--min-vmaf", "$MinVmaf",
-            "--max-encoded-percent", "90",
-            "--preset", "p7",
-            "--min-samples", "3",
-            "--sample-every", "8m",
-            "--sample-duration", "12s",
-            "--enc", "rc=vbr",
-            "--enc", "b:v=0",
-            "--enc", "spatial_aq=1",
-            "--enc", "rc-lookahead=32",
-            "--enc-input", "noautorotate"
+        $vmafArguments = Get-VmafArguments $Source
+        $cq = Find-NvencCq $Source $vmafArguments
+        Write-Host "Selected NVENC CQ $cq"
+
+        Invoke-Native $Ffmpeg @(
+            "-hide_banner", "-y", "-noautorotate",
+            "-i", $Source.FullName,
+            "-map", "0:v:0",
+            "-an",
+            "-c:v", "hevc_nvenc",
+            "-preset", "p7",
+            "-pix_fmt", "yuv420p",
+            "-rc", "vbr",
+            "-b:v", "0",
+            "-cq", "$cq",
+            "-spatial_aq", "1",
+            "-rc-lookahead", "32",
+            $videoOnly
         )
-        $arguments += Get-VmafArguments $Source
-        Invoke-Native $AbAv1 $arguments
 
         Invoke-Native $Ffmpeg @(
             "-hide_banner", "-y", "-noautorotate",

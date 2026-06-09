@@ -267,6 +267,9 @@ and sharing compatibility is much better across older clients.
 The NVIDIA variant uses the same WebP and VMAF targets but replaces CPU
 `libx265` with `hevc_nvenc`. It is much faster, though files may be larger than
 the CPU profile at the same VMAF target. VMAF analysis still runs on the CPU.
+It searches NVENC CQ values for VMAF `95`; when a difficult source cannot reach
+that target even at the highest-quality tested CQ, it logs a warning and uses
+the best measured result instead of failing the upload.
 
 ### Windows folder compressor
 
