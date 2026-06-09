@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -178,12 +179,54 @@ func (ac *AppConfig) prepareProfile(profile *ProfileConfig) error {
 		return fmt.Errorf("error creating undone directory: %v", mkdirErr)
 	}
 
+	migrateLegacyProfileTaskFile(profile)
 	var err error
 	profile.Tasks, err = NewConfig(&profile.ConfigFile)
 	if err != nil {
 		return fmt.Errorf("error loading tasks file: %v", err)
 	}
 	return nil
+}
+
+func migrateLegacyProfileTaskFile(profile *ProfileConfig) {
+	configPath := filepath.ToSlash(profile.ConfigFile)
+	for _, migration := range []struct {
+		oldSuffix string
+		newSuffix string
+		name      string
+		nvidia    bool
+	}{
+		{
+			oldSuffix: "/perceptual/perceptual-av1/tasks.yaml",
+			newSuffix: "/perceptual/av1/tasks.yaml",
+			name:      "perceptual/perceptual-av1",
+		},
+		{
+			oldSuffix: "/perceptual/perceptual-hevc-webp/tasks.yaml",
+			newSuffix: "/perceptual/hevc/tasks.yaml",
+			name:      "perceptual/perceptual-hevc-webp",
+		},
+		{
+			oldSuffix: "/perceptual/perceptual-hevc-webp-nvidia/tasks.yaml",
+			newSuffix: "/perceptual/hevc/tasks.yaml",
+			name:      "perceptual/perceptual-hevc-webp-nvidia",
+			nvidia:    true,
+		},
+	} {
+		oldRelative := strings.TrimPrefix(migration.oldSuffix, "/")
+		newRelative := strings.TrimPrefix(migration.newSuffix, "/")
+		switch {
+		case configPath == oldRelative:
+			profile.ConfigFile = filepath.FromSlash(newRelative)
+		case strings.HasSuffix(configPath, migration.oldSuffix):
+			profile.ConfigFile = filepath.FromSlash(strings.TrimSuffix(configPath, migration.oldSuffix) + migration.newSuffix)
+		default:
+			continue
+		}
+		profile.LegacyTaskConfigName = migration.name
+		profile.LegacyUseNvidia = migration.nvidia
+		return
+	}
 }
 
 func (profile *ProfileConfig) validate() error {

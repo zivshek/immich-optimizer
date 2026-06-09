@@ -72,15 +72,17 @@ type ProfilesConfig struct {
 }
 
 type ProfileConfig struct {
-	Name         string  `mapstructure:"name"`
-	User         string  `mapstructure:"user"`
-	ImmichURL    string  `mapstructure:"immich_url"`
-	ImmichAPIKey string  `mapstructure:"immich_api_key"`
-	APIKey       string  `mapstructure:"api_key"`
-	WatchDir     string  `mapstructure:"watch_dir"`
-	UndoneDir    string  `mapstructure:"undone_dir"`
-	ConfigFile   string  `mapstructure:"tasks_file"`
-	Tasks        *Config `mapstructure:"-"`
+	Name                 string  `mapstructure:"name"`
+	User                 string  `mapstructure:"user"`
+	ImmichURL            string  `mapstructure:"immich_url"`
+	ImmichAPIKey         string  `mapstructure:"immich_api_key"`
+	APIKey               string  `mapstructure:"api_key"`
+	WatchDir             string  `mapstructure:"watch_dir"`
+	UndoneDir            string  `mapstructure:"undone_dir"`
+	ConfigFile           string  `mapstructure:"tasks_file"`
+	Tasks                *Config `mapstructure:"-"`
+	LegacyTaskConfigName string  `mapstructure:"-"`
+	LegacyUseNvidia      bool    `mapstructure:"-"`
 }
 
 func NewProfilesConfig(configFile string) (*ProfilesConfig, error) {

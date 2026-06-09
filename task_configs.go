@@ -74,6 +74,9 @@ func (registry *TaskConfigRegistry) Register(watcher *FileWatcher) error {
 	if err != nil {
 		return err
 	}
+	if legacySelection == "" {
+		legacySelection = watcher.profile.LegacyTaskConfigName
+	}
 	migratedNvidia := legacySelection == "perceptual/perceptual-hevc-webp-nvidia"
 	for _, mediaType := range []string{mediaTypeImage, mediaTypeVideo} {
 		selected, err := registry.store.SelectedMediaTaskConfig(watcher.profile.Name, mediaType)
@@ -104,6 +107,9 @@ func (registry *TaskConfigRegistry) Register(watcher *FileWatcher) error {
 		return err
 	}
 	if migratedNvidia {
+		useNvidia = true
+	}
+	if watcher.profile.LegacyUseNvidia {
 		useNvidia = true
 	}
 	watcher.setNvidiaEnabled(useNvidia)

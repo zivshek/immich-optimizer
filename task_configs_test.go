@@ -129,6 +129,52 @@ func TestBundledPerceptualConfigsAreSinglePurpose(t *testing.T) {
 	}
 }
 
+func TestTaskConfigRegistryMigratesLegacyNvidiaPerceptualProfile(t *testing.T) {
+	root := t.TempDir()
+	writeTestTaskConfig(t, root, "perceptual/webp", []byte(`
+tasks:
+  - name: images
+    command: ""
+    extensions: [jpg]
+`))
+	writeTestTaskConfig(t, root, "perceptual/hevc", []byte(`
+tasks:
+  - name: videos
+    command: ""
+    extensions: [mp4]
+`))
+	hevcPath := filepath.Join(root, "perceptual", "hevc", "tasks.yaml")
+	hevcConfig, err := NewConfig(&hevcPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := NewStatsStore(filepath.Join(t.TempDir(), "stats.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	profile := &ProfileConfig{
+		Name:                 "alice",
+		ConfigFile:           hevcPath,
+		Tasks:                hevcConfig,
+		LegacyTaskConfigName: "perceptual/perceptual-hevc-webp-nvidia",
+		LegacyUseNvidia:      true,
+	}
+	watcher := &FileWatcher{profile: profile, config: hevcConfig, logger: log.New(io.Discard, "", 0)}
+	registry := NewTaskConfigRegistry(root, filepath.Join(t.TempDir(), "missing-custom"), store)
+	if err := registry.Register(watcher); err != nil {
+		t.Fatal(err)
+	}
+	profiles, err := registry.List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if profiles[0].ImageCurrent != "perceptual/webp" || profiles[0].VideoCurrent != "perceptual/hevc" || !profiles[0].UseNvidia {
+		t.Fatalf("legacy profile was not migrated: %+v", profiles[0])
+	}
+}
+
 func writeTestTaskConfig(t *testing.T, root, name string, contents []byte) {
 	t.Helper()
 	dir := filepath.Join(root, filepath.FromSlash(name))

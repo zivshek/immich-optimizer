@@ -137,7 +137,8 @@ clicking **Apply** and persist in the SQLite database across container restarts.
 been saved. A custom config may contain only image tasks or only video tasks;
 its scripts remain relative to the folder containing its `tasks.yaml`.
 Saved selections using the former combined perceptual config names migrate to
-the matching independent choices automatically.
+the matching independent choices automatically. Legacy `IUO_TASKS_FILE` paths
+for those removed combined configs are also rewritten during startup.
 
 The dashboard does not currently provide authentication. Keep port `8098` on a
 trusted network or place it behind an authenticated reverse proxy. When using a

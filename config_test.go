@@ -130,3 +130,18 @@ profiles:
 		t.Fatalf("unexpected profile API key: %q", profile.ImmichAPIKey)
 	}
 }
+
+func TestMigrateLegacyProfileTaskFile(t *testing.T) {
+	profile := &ProfileConfig{
+		ConfigFile: "/etc/immich-optimizer/bundled-configs/perceptual/perceptual-hevc-webp-nvidia/tasks.yaml",
+	}
+	migrateLegacyProfileTaskFile(profile)
+
+	expected := filepath.FromSlash("/etc/immich-optimizer/bundled-configs/perceptual/hevc/tasks.yaml")
+	if profile.ConfigFile != expected {
+		t.Fatalf("unexpected migrated tasks file: %q", profile.ConfigFile)
+	}
+	if profile.LegacyTaskConfigName != "perceptual/perceptual-hevc-webp-nvidia" || !profile.LegacyUseNvidia {
+		t.Fatalf("legacy intent was not preserved: %+v", profile)
+	}
+}
