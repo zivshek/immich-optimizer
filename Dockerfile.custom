@@ -80,14 +80,14 @@ COPY --from=builder /usr/local/bin/immich-optimizer /usr/local/bin/immich-optimi
 
 # Create directories with proper permissions
 RUN mkdir -p /etc/immich-optimizer/config \
-    /etc/immich-optimizer/bundled-configs \
+    /etc/immich-optimizer/bundled-configs/standard \
     /watch \
     /data && \
     chown -R appuser:appuser /etc/immich-optimizer /watch /data
 
 # Copy configuration files
-COPY --chown=appuser:appuser config/lossless /etc/immich-optimizer/config
-COPY --chown=appuser:appuser config /etc/immich-optimizer/bundled-configs
+COPY --chown=appuser:appuser config/standard/lossless /etc/immich-optimizer/config
+COPY --chown=appuser:appuser config/standard /etc/immich-optimizer/bundled-configs/standard
 
 # Add metadata labels
 LABEL \

@@ -30,7 +30,8 @@ for server-side processing **before** assets are uploaded to Immich.
   upload. Failed files are copied to the profile's `undone` directory.
 - **FolderSync-aware watching:** Handles atomic file placement and hardlinks,
   and ignores hidden files/directories such as `.trashed-*`.
-- **Fork publishing:** Multi-architecture images are published to
+- **Fork publishing:** A lightweight multi-architecture standard image and an
+  AMD64 perceptual-quality image are published to
   `ghcr.io/zivshek/immich-optimizer`.
 - **Dashboard and history:** Provides an embedded dashboard with live logs,
   processed counts, size totals, space savings, reduction percentage, and
@@ -79,8 +80,16 @@ docker run -d \
 Images are published automatically by GitHub Actions:
 
 - Every push to `main` publishes `latest` and a `sha-...` tag.
+- Every push to `main` also publishes the AMD64-only `perceptual` and
+  `perceptual-sha-...` tags.
 - Tags such as `v1.2.3` publish `1.2.3`, `1.2`, `1`, and `sha-...`.
 - Pull requests run tests but do not publish images.
+
+Use `ghcr.io/zivshek/immich-optimizer:latest` for standard profiles. Use
+`ghcr.io/zivshek/immich-optimizer:perceptual` for profiles that require
+`oavif`, `ab-av1`, VMAF, or the dedicated NVENC-enabled FFmpeg build. Keeping
+the expensive perceptual toolchain in a separate AMD64 image makes normal
+multi-architecture publishes much faster.
 
 After the first workflow publish, set the package visibility to **Public** in
 the package settings if anonymous `docker pull` access is desired.
@@ -127,7 +136,7 @@ watch directory, and failure directory.
 ```yaml
 environment:
   IUO_IMMICH_URL: http://immich-server:2283
-  IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/lossless/tasks.yaml
+  IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/standard/lossless/tasks.yaml
   IUO_PROFILES_CONFIG: |
     profiles:
       - user: alice
@@ -171,7 +180,7 @@ For lossless image optimization combined with HandBrake NVIDIA video
 transcoding, use:
 
 ```yaml
-IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/mixed-lossless-images-nvidia-handbrake/tasks.yaml
+IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/standard/mixed-lossless-images-nvidia-handbrake/tasks.yaml
 ```
 
 `cjxl --lossless_jpeg=1` is specifically a reversible JPEG-to-JXL conversion.
@@ -183,7 +192,7 @@ For the same lossless image handling with phone-video rotation preserved as
 display metadata and high-quality FFmpeg NVENC encoding, use:
 
 ```yaml
-IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/mixed-lossless-images-nvidia-ffmpeg/tasks.yaml
+IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/standard/mixed-lossless-images-nvidia-ffmpeg/tasks.yaml
 ```
 
 This profile disables FFmpeg autorotation, preserves the stored frame
@@ -208,25 +217,31 @@ docker exec immich-optimizer ffmpeg -hide_banner -f lavfi \
 Three balanced NVIDIA/FFmpeg profiles are bundled for different image
 compatibility and compression goals:
 
+Standard profile sources live under `config/standard`; perceptual profile
+sources live under `config/perceptual`.
+
 ```yaml
 # JPEG XL: strongest JPEG recompression, but limited support after download
-IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/balanced-jxl-nvidia-ffmpeg/tasks.yaml
+IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/standard/balanced-jxl-nvidia-ffmpeg/tasks.yaml
 
 # Standard JPEG: broadest compatibility
-IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/balanced-caesium-nvidia-ffmpeg/tasks.yaml
+IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/standard/balanced-caesium-nvidia-ffmpeg/tasks.yaml
 
 # AVIF: stronger compression with wider support than JPEG XL
-IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/balanced-avif-nvidia-ffmpeg/tasks.yaml
+IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/standard/balanced-avif-nvidia-ffmpeg/tasks.yaml
 
 # Perceptual AV1: oavif SSIMULACRA2 images and ab-av1 VMAF videos
-IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/perceptual-av1/tasks.yaml
+IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/perceptual/perceptual-av1/tasks.yaml
 
 # Perceptual compatibility: WebP images and H.265/HEVC VMAF videos
-IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/perceptual-hevc-webp/tasks.yaml
+IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/perceptual/perceptual-hevc-webp/tasks.yaml
 
 # Perceptual compatibility with NVIDIA GPU HEVC encoding
-IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/perceptual-hevc-webp-nvidia/tasks.yaml
+IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/perceptual/perceptual-hevc-webp-nvidia/tasks.yaml
 ```
+
+The first three profiles are available in the standard `:latest` image. The
+three perceptual profiles require `ghcr.io/zivshek/immich-optimizer:perceptual`.
 
 The JPEG XL profile uses distance `1.0`; the Caesium profile keeps JPEG/JPG as
 standard JPEG at quality `85`; and the AVIF profile converts JPEG, PNG, and
@@ -253,9 +268,36 @@ The NVIDIA variant uses the same WebP and VMAF targets but replaces CPU
 `libx265` with `hevc_nvenc`. It is much faster, though files may be larger than
 the CPU profile at the same VMAF target. VMAF analysis still runs on the CPU.
 
-### 🚀 Custom Image (GPU Acceleration, FFMPEG, etc.)
+### Windows folder compressor
 
-Hardware-accelerated video encoding (NVidia NVENC, Intel VAAPI, etc.) is **not included in the base image** because providing a one-size-fits-all solution is complex and leads to massive image fragmentation. Furthermore, there are some limitations with the upstream HandBrake base image not supporting `arm64` (see [jlesage/docker-handbrake#48](https://github.com/jlesage/docker-handbrake/issues/48)).
+[`scripts/compress-perceptual-hevc-webp-nvidia.ps1`](scripts/compress-perceptual-hevc-webp-nvidia.ps1)
+provides the same WebP and VMAF-guided NVIDIA HEVC workflow for a local Windows
+folder. It processes only files directly inside the folder, converts JPEG/PNG
+to `filename.webp`, converts videos to `filename-hbed.mp4`, and skips existing
+WebP files and videos whose names already end in `-hbed`.
+
+It requires `ab-av1`, `cwebp`, ExifTool, and an FFmpeg build containing both
+`libvmaf` and `hevc_nvenc` on `PATH`. Run it from PowerShell:
+
+```powershell
+.\scripts\compress-perceptual-hevc-webp-nvidia.ps1 "D:\Camera"
+
+# Delete originals only after verified metadata-preserving smaller outputs
+.\scripts\compress-perceptual-hevc-webp-nvidia.ps1 "D:\Camera" -DeleteOriginal
+```
+
+Use `-WhatIf` with `-DeleteOriginal` to preview deletions. Optional
+`-VmafModelDirectory` can point to a folder containing `vmaf_v0.6.1.json` and
+`vmaf_4k_v0.6.1.json`.
+
+### 🚀 Custom Image (Additional Tools, Drivers, etc.)
+
+The standard image includes FFmpeg, HandBrakeCLI, and the tools required by the
+standard bundled profiles. Hardware encoding still requires compatible host
+drivers and GPU passthrough. Use a custom image when a profile needs additional
+tools, codecs, or driver-specific packages. There are also limitations with the
+upstream HandBrake base image not supporting `arm64` (see
+[jlesage/docker-handbrake#48](https://github.com/jlesage/docker-handbrake/issues/48)).
 
 Instead of using the pre-built image, you can use your own Dockerfile, I provide a example [Dockerfile.custom](Dockerfile.custom) (should already have GPU acceleration working) as a starting point to bundle the latest **Immich Optimizer** binary directly **INTO your own specialized container environment**. This approach allows you to install **any additional packages or specific versions** (e.g. CUDA, specialized ffmpeg builds, specific driver versions, or custom tools) required for your specific hardware/workflow.
 
@@ -320,7 +362,7 @@ The optimizer includes three pre-configured profiles:
 
 ### 🔒 Lossless Profile (Default)
 ```yaml
-# Located at: config/lossless/tasks.yaml
+# Located at: config/standard/lossless/tasks.yaml
 # - Lossless JPEG-XL conversion for images
 # - Caesium lossless compression
 # - Passthrough for videos (no compression)
@@ -328,7 +370,7 @@ The optimizer includes three pre-configured profiles:
 
 ### ⚡ Lossy Profile
 ```yaml
-# Located at: config/profile1/tasks.yaml  
+# Located at: config/standard/profile1/tasks.yaml
 # - Lossy JPEG-XL conversion (quality 75)
 # - Caesium compression (quality 85)
 # - HandBrake video compression
@@ -337,7 +379,7 @@ The optimizer includes three pre-configured profiles:
 
 ### 📤 Passthrough Profile
 ```yaml
-# Located at: config/passthrough-all/tasks.yaml
+# Located at: config/standard/passthrough-all/tasks.yaml
 # - No optimization, uploads files as-is
 # - Useful for testing or when optimization is not desired
 ```

@@ -74,7 +74,7 @@ func TestNewProfilesFromEnvironmentUsesSharedSettings(t *testing.T) {
 	profiles, err := NewProfilesFromEnvironment(
 		"hshi",
 		"http://immich:2283",
-		"/etc/immich-optimizer/bundled-configs/storage-saver-nvidia-gpu/tasks.yaml",
+		"/etc/immich-optimizer/bundled-configs/standard/storage-saver-nvidia-gpu/tasks.yaml",
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -84,7 +84,7 @@ func TestNewProfilesFromEnvironmentUsesSharedSettings(t *testing.T) {
 	if profile.ImmichURL != "http://immich:2283" {
 		t.Fatalf("unexpected shared Immich URL: %q", profile.ImmichURL)
 	}
-	if profile.ConfigFile != "/etc/immich-optimizer/bundled-configs/storage-saver-nvidia-gpu/tasks.yaml" {
+	if profile.ConfigFile != "/etc/immich-optimizer/bundled-configs/standard/storage-saver-nvidia-gpu/tasks.yaml" {
 		t.Fatalf("unexpected shared tasks file: %q", profile.ConfigFile)
 	}
 	if profile.ImmichAPIKey != "test-api-key-long-enough" {
@@ -110,7 +110,7 @@ profiles:
 	profiles, err := NewProfilesFromInlineConfig(
 		config,
 		"http://immich:2283",
-		"/etc/immich-optimizer/bundled-configs/storage-saver-nvidia-gpu/tasks.yaml",
+		"/etc/immich-optimizer/bundled-configs/standard/storage-saver-nvidia-gpu/tasks.yaml",
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -123,7 +123,7 @@ profiles:
 	if profile.ImmichURL != "http://immich:2283" {
 		t.Fatalf("unexpected shared Immich URL: %q", profile.ImmichURL)
 	}
-	if profile.ConfigFile != "/etc/immich-optimizer/bundled-configs/storage-saver-nvidia-gpu/tasks.yaml" {
+	if profile.ConfigFile != "/etc/immich-optimizer/bundled-configs/standard/storage-saver-nvidia-gpu/tasks.yaml" {
 		t.Fatalf("unexpected shared tasks file: %q", profile.ConfigFile)
 	}
 	if profile.ImmichAPIKey != "test-api-key-long-enough" {

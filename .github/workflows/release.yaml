@@ -35,8 +35,8 @@ jobs:
       - name: Test
         run: go test -v ./...
 
-  publish-container:
-    name: Publish container
+  publish-standard:
+    name: Publish standard container
     if: github.event_name != 'pull_request'
     needs: quality
     runs-on: ubuntu-latest
@@ -61,7 +61,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Generate image metadata
-        id: meta
+        id: standard-meta
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/zivshek/immich-optimizer
@@ -79,10 +79,57 @@ jobs:
           file: Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.standard-meta.outputs.tags }}
+          labels: ${{ steps.standard-meta.outputs.labels }}
           build-args: |
-            VERSION=${{ steps.meta.outputs.version }}
+            VERSION=${{ steps.standard-meta.outputs.version }}
             COMMIT=${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=standard
+          cache-to: type=gha,mode=max,scope=standard
+
+  publish-perceptual:
+    name: Publish perceptual container
+    if: github.event_name != 'pull_request'
+    needs: quality
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate perceptual image metadata
+        id: perceptual-meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/zivshek/immich-optimizer
+          tags: |
+            type=raw,value=perceptual,enable={{is_default_branch}}
+            type=semver,pattern=perceptual-{{version}}
+            type=sha,prefix=perceptual-sha-
+
+      - name: Build and push perceptual image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.perceptual
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.perceptual-meta.outputs.tags }}
+          labels: ${{ steps.perceptual-meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ steps.perceptual-meta.outputs.version }}
+            COMMIT=${{ github.sha }}
+          cache-from: type=gha,scope=perceptual
+          cache-to: type=gha,mode=max,scope=perceptual
