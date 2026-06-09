@@ -270,9 +270,11 @@ files bit-for-bit.
 The AVIF profile uses ImageMagick with Debian's `libheif-plugin-aomenc` AV1
 still-image encoder, which is included in the published container.
 
-The perceptual AVIF image config uses `oavif --score-tgt 90`. The perceptual
+The dashboard's per-profile **Image Score** defaults to SSIMULACRA2 `85` and
+applies to both perceptual image configs. The perceptual AVIF image config uses
+that value with `oavif --score-tgt`. The perceptual
 WebP image config searches `cwebp` qualities with `fssimu2` and selects the
-smallest output meeting SSIMULACRA2 `90`. The perceptual AV1 video config uses
+smallest output meeting the selected score. The perceptual AV1 video config uses
 `ab-av1 auto-encode --min-vmaf 95` with SVT-AV1. It is
 CPU-heavy, but it searches for an AV1 encode that meets a perceptual quality
 target instead of applying one fixed quality number to every file.

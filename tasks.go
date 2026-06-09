@@ -69,7 +69,7 @@ func (tp *TaskProcessor) SetConfigDir(configDir string) {
 }
 
 func (tp *TaskProcessor) SetEnvironment(environment ...string) {
-	tp.environment = append([]string(nil), environment...)
+	tp.environment = append(tp.environment, environment...)
 }
 
 func (tp *TaskProcessor) logf(str string, args ...any) {

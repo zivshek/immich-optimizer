@@ -120,4 +120,11 @@ func TestStatsStorePersistsIndependentMediaTaskConfigs(t *testing.T) {
 	if err != nil || !enabled {
 		t.Fatalf("unexpected NVIDIA option: %v, %v", enabled, err)
 	}
+	if err := store.SetProfileImageScore("alice", 87); err != nil {
+		t.Fatal(err)
+	}
+	score, err := store.ProfileImageScore("alice")
+	if err != nil || score != 87 {
+		t.Fatalf("unexpected image score: %d, %v", score, err)
+	}
 }

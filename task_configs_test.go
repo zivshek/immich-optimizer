@@ -80,6 +80,9 @@ tasks:
 	if err := registry.SetNvidia("alice", true); err != nil {
 		t.Fatal(err)
 	}
+	if err := registry.SetImageScore("alice", 87); err != nil {
+		t.Fatal(err)
+	}
 	profiles, err = registry.List()
 	if err != nil {
 		t.Fatal(err)
@@ -89,6 +92,9 @@ tasks:
 	}
 	if !profiles[0].UseNvidia {
 		t.Fatal("NVIDIA option was not applied")
+	}
+	if profiles[0].ImageScore != 87 {
+		t.Fatalf("image score was not applied: %d", profiles[0].ImageScore)
 	}
 	imageSelected, err := store.SelectedMediaTaskConfig("alice", mediaTypeImage)
 	if err != nil || imageSelected != "custom/my-profile" {
@@ -135,15 +141,17 @@ func TestPerceptualImagesTargetSsimulacra2Score90(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(avifScript), "--score-tgt 90") {
-		t.Fatal("perceptual AVIF does not target SSIMULACRA2 90")
+	for _, expected := range []string{`target_score="${IUO_IMAGE_SCORE:-85}"`, `--score-tgt "$target_score"`} {
+		if !strings.Contains(string(avifScript), expected) {
+			t.Fatalf("perceptual AVIF script is missing %q", expected)
+		}
 	}
 
 	webpScript, err := os.ReadFile(filepath.Join("config", "perceptual", "webp", "transcode-image.sh"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{"target_score=90", "fssimu2", "2>&1", "unable to read SSIMULACRA2 score", "selected WebP quality"} {
+	for _, expected := range []string{`target_score="${IUO_IMAGE_SCORE:-85}"`, "fssimu2", "2>&1", "unable to read SSIMULACRA2 score", "selected WebP quality"} {
 		if !strings.Contains(string(webpScript), expected) {
 			t.Fatalf("perceptual WebP script is missing %q", expected)
 		}

@@ -31,6 +31,7 @@ type FileWatcher struct {
 	imageConfig    taskConfigSelection
 	videoConfig    taskConfigSelection
 	useNvidia      bool
+	imageScore     int
 	semaphore      chan struct{} // shared application concurrency limit
 	stopOnce       sync.Once
 	processing     sync.Map // tracks files actively being processed to avoid duplicate concurrent tasks
@@ -64,6 +65,7 @@ func NewFileWatcher(profile *ProfileConfig, immichClient *ImmichClient, logger *
 		statsStore:   statsStore,
 		imageConfig:  taskConfigSelection{Config: profile.Tasks, File: profile.ConfigFile, Name: profile.ConfigFile},
 		videoConfig:  taskConfigSelection{Config: profile.Tasks, File: profile.ConfigFile, Name: profile.ConfigFile},
+		imageScore:   85,
 	}
 
 	return fw, nil
@@ -126,6 +128,22 @@ func (fw *FileWatcher) setNvidiaEnabled(enabled bool) {
 	defer fw.configMu.Unlock()
 	fw.useNvidia = enabled
 	fw.logger.Printf("Profile %s: NVIDIA processing %s", fw.profile.Name, map[bool]string{true: "enabled", false: "disabled"}[enabled])
+}
+
+func (fw *FileWatcher) currentImageScore() int {
+	fw.configMu.RLock()
+	defer fw.configMu.RUnlock()
+	if fw.imageScore <= 0 {
+		return 85
+	}
+	return fw.imageScore
+}
+
+func (fw *FileWatcher) setImageScore(score int) {
+	fw.configMu.Lock()
+	defer fw.configMu.Unlock()
+	fw.imageScore = score
+	fw.logger.Printf("Profile %s: image SSIMULACRA2 target set to %d", fw.profile.Name, score)
 }
 
 // Start begins monitoring the directory for file changes

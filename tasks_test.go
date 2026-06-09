@@ -33,3 +33,13 @@ func TestCommandOutputWriterWithoutLogger(t *testing.T) {
 	}
 	writer.Flush()
 }
+
+func TestTaskProcessorAccumulatesEnvironment(t *testing.T) {
+	processor := &TaskProcessor{}
+	processor.SetEnvironment("IUO_USE_NVIDIA=1")
+	processor.SetEnvironment("IUO_IMAGE_SCORE=85")
+
+	if len(processor.environment) != 2 || processor.environment[0] != "IUO_USE_NVIDIA=1" || processor.environment[1] != "IUO_IMAGE_SCORE=85" {
+		t.Fatalf("unexpected task environment: %v", processor.environment)
+	}
+}

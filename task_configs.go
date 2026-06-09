@@ -34,6 +34,7 @@ type ProfileTaskConfigs struct {
 	ImageConfigs []TaskConfigOption `json:"image_configs"`
 	VideoConfigs []TaskConfigOption `json:"video_configs"`
 	UseNvidia    bool               `json:"use_nvidia"`
+	ImageScore   int                `json:"image_score"`
 }
 
 type discoveredTaskConfig struct {
@@ -113,6 +114,11 @@ func (registry *TaskConfigRegistry) Register(watcher *FileWatcher) error {
 		useNvidia = true
 	}
 	watcher.setNvidiaEnabled(useNvidia)
+	imageScore, err := registry.store.ProfileImageScore(watcher.profile.Name)
+	if err != nil {
+		return err
+	}
+	watcher.setImageScore(imageScore)
 	return nil
 }
 
@@ -158,6 +164,7 @@ func (registry *TaskConfigRegistry) List() ([]ProfileTaskConfigs, error) {
 			ImageConfigs: append([]TaskConfigOption(nil), imageConfigs...),
 			VideoConfigs: append([]TaskConfigOption(nil), videoConfigs...),
 			UseNvidia:    watcher.nvidiaEnabled(),
+			ImageScore:   watcher.currentImageScore(),
 		})
 	}
 	sort.Slice(profiles, func(i, j int) bool { return profiles[i].Profile < profiles[j].Profile })
@@ -175,6 +182,23 @@ func (registry *TaskConfigRegistry) SetNvidia(profileName string, enabled bool) 
 		return err
 	}
 	watcher.setNvidiaEnabled(enabled)
+	return nil
+}
+
+func (registry *TaskConfigRegistry) SetImageScore(profileName string, score int) error {
+	if score < 0 || score > 100 {
+		return fmt.Errorf("image score must be between 0 and 100")
+	}
+	registry.mu.RLock()
+	watcher := registry.watchers[profileName]
+	registry.mu.RUnlock()
+	if watcher == nil {
+		return fmt.Errorf("profile %q not found", profileName)
+	}
+	if err := registry.store.SetProfileImageScore(profileName, score); err != nil {
+		return err
+	}
+	watcher.setImageScore(score)
 	return nil
 }
 

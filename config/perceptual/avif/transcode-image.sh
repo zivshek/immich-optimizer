@@ -3,9 +3,10 @@ set -eu
 
 src=$1
 dst=$2
+target_score="${IUO_IMAGE_SCORE:-85}"
 
 oavif \
-  --score-tgt 90 \
+  --score-tgt "$target_score" \
   --tolerance 2 \
   --max-threads 8 \
   "$src" "$dst"

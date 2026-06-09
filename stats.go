@@ -113,6 +113,7 @@ func (store *StatsStore) init() error {
 		CREATE TABLE IF NOT EXISTS profile_processing_options (
 			profile TEXT PRIMARY KEY,
 			use_nvidia INTEGER NOT NULL DEFAULT 0,
+			image_score INTEGER NOT NULL DEFAULT 85,
 			updated_at DATETIME NOT NULL
 		);
 	`)
@@ -130,6 +131,9 @@ func (store *StatsStore) init() error {
 		if err := store.ensureColumn("processed_assets", column.name, column.definition); err != nil {
 			return err
 		}
+	}
+	if err := store.ensureColumn("profile_processing_options", "image_score", "INTEGER NOT NULL DEFAULT 85"); err != nil {
+		return err
 	}
 	return nil
 }
@@ -156,6 +160,30 @@ func (store *StatsStore) ProfileNvidia(profile string) (bool, error) {
 		return false, fmt.Errorf("query profile NVIDIA option: %w", err)
 	}
 	return enabled, nil
+}
+
+func (store *StatsStore) SetProfileImageScore(profile string, score int) error {
+	_, err := store.db.Exec(`
+		INSERT INTO profile_processing_options (profile, image_score, updated_at)
+		VALUES (?, ?, ?)
+		ON CONFLICT(profile) DO UPDATE SET image_score = excluded.image_score, updated_at = excluded.updated_at
+	`, profile, score, time.Now().UTC())
+	if err != nil {
+		return fmt.Errorf("record profile image score: %w", err)
+	}
+	return nil
+}
+
+func (store *StatsStore) ProfileImageScore(profile string) (int, error) {
+	var score int
+	err := store.db.QueryRow(`SELECT image_score FROM profile_processing_options WHERE profile = ?`, profile).Scan(&score)
+	if err == sql.ErrNoRows {
+		return 85, nil
+	}
+	if err != nil {
+		return 0, fmt.Errorf("query profile image score: %w", err)
+	}
+	return score, nil
 }
 
 func (store *StatsStore) RecordMediaTaskConfigSelection(profile, mediaType, configName string) error {
