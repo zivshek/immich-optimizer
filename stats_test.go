@@ -134,4 +134,11 @@ func TestStatsStorePersistsIndependentMediaTaskConfigs(t *testing.T) {
 	if err != nil || videoScore != 93 {
 		t.Fatalf("unexpected video score: %d, %v", videoScore, err)
 	}
+	if err := store.SetProfileVideoCRF("alice", 30); err != nil {
+		t.Fatal(err)
+	}
+	videoCRF, err := store.ProfileVideoCRF("alice")
+	if err != nil || videoCRF != 30 {
+		t.Fatalf("unexpected video CRF: %d, %v", videoCRF, err)
+	}
 }

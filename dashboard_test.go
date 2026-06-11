@@ -73,7 +73,7 @@ tasks:
 	if configResponse.Code != http.StatusOK || !strings.Contains(configResponse.Body.String(), `"image_current":"standard/lossless"`) {
 		t.Fatalf("unexpected task configs response: %d %s", configResponse.Code, configResponse.Body.String())
 	}
-	selectRequest := httptest.NewRequest(http.MethodPut, "/api/task-configs/alice", strings.NewReader(`{"image_config":"standard/lossless","image_score":87,"video_config":"standard/lossless","video_score":93,"use_nvidia":true}`))
+	selectRequest := httptest.NewRequest(http.MethodPut, "/api/task-configs/alice", strings.NewReader(`{"image_config":"standard/lossless","image_score":87,"video_config":"standard/lossless","video_score":93,"video_crf":30,"use_nvidia":true}`))
 	selectRequest.SetPathValue("profile", "alice")
 	selectResponse := httptest.NewRecorder()
 	dashboard.handleSelectTaskConfig(selectResponse, selectRequest)
@@ -88,6 +88,9 @@ tasks:
 	}
 	if watcher.currentVideoScore() != 93 {
 		t.Fatalf("video score was not applied: %d", watcher.currentVideoScore())
+	}
+	if watcher.currentVideoCRF() != 30 {
+		t.Fatalf("video CRF was not applied: %d", watcher.currentVideoCRF())
 	}
 
 	recentRequest := httptest.NewRequest(http.MethodGet, "/api/recent?page=1", nil)

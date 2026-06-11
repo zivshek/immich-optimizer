@@ -283,10 +283,14 @@ CPU-heavy, but it searches for an AV1 encode that meets a perceptual quality
 target instead of applying one fixed quality number to every file.
 
 The standard `av1-crf28` video config performs one SVT-AV1 encode at preset
-`6` and CRF `28`, without VMAF sampling. It is substantially faster and uses
-less CPU time than perceptual auto-encode, while retaining high visual quality
-for typical phone videos. It preserves source frame orientation, copies audio
-and chapters, and restores and validates embedded metadata.
+`6`, without VMAF sampling. Its CRF comes from the dashboard's per-profile
+**Video CRF** control and defaults to `28`. Lower values retain more quality
+and produce larger files; higher values save more space. Changes apply to
+future jobs, so you can adjust the value before processing a particular video
+or batch. The profile is substantially faster and uses less CPU time than
+perceptual auto-encode, while retaining high visual quality for typical phone
+videos. It preserves source frame orientation, copies audio and chapters, and
+restores and validates embedded metadata.
 
 The perceptual AV1 config samples at least five six-second sections, spaced
 every two minutes, before selecting the full encode settings.

@@ -36,6 +36,7 @@ type ProfileTaskConfigs struct {
 	UseNvidia    bool               `json:"use_nvidia"`
 	ImageScore   int                `json:"image_score"`
 	VideoScore   int                `json:"video_score"`
+	VideoCRF     int                `json:"video_crf"`
 }
 
 type discoveredTaskConfig struct {
@@ -125,6 +126,11 @@ func (registry *TaskConfigRegistry) Register(watcher *FileWatcher) error {
 		return err
 	}
 	watcher.setVideoScore(videoScore)
+	videoCRF, err := registry.store.ProfileVideoCRF(watcher.profile.Name)
+	if err != nil {
+		return err
+	}
+	watcher.setVideoCRF(videoCRF)
 	return nil
 }
 
@@ -172,6 +178,7 @@ func (registry *TaskConfigRegistry) List() ([]ProfileTaskConfigs, error) {
 			UseNvidia:    watcher.nvidiaEnabled(),
 			ImageScore:   watcher.currentImageScore(),
 			VideoScore:   watcher.currentVideoScore(),
+			VideoCRF:     watcher.currentVideoCRF(),
 		})
 	}
 	sort.Slice(profiles, func(i, j int) bool { return profiles[i].Profile < profiles[j].Profile })
@@ -223,6 +230,23 @@ func (registry *TaskConfigRegistry) SetVideoScore(profileName string, score int)
 		return err
 	}
 	watcher.setVideoScore(score)
+	return nil
+}
+
+func (registry *TaskConfigRegistry) SetVideoCRF(profileName string, crf int) error {
+	if crf < 0 || crf > 63 {
+		return fmt.Errorf("video CRF must be between 0 and 63")
+	}
+	registry.mu.RLock()
+	watcher := registry.watchers[profileName]
+	registry.mu.RUnlock()
+	if watcher == nil {
+		return fmt.Errorf("profile %q not found", profileName)
+	}
+	if err := registry.store.SetProfileVideoCRF(profileName, crf); err != nil {
+		return err
+	}
+	watcher.setVideoCRF(crf)
 	return nil
 }
 

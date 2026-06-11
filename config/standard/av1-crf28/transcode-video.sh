@@ -3,6 +3,7 @@ set -eu
 
 src=$1
 dst=$2
+crf="${IUO_VIDEO_CRF:-28}"
 
 ffmpeg -hide_banner -y \
   -noautorotate \
@@ -13,7 +14,7 @@ ffmpeg -hide_banner -y \
   -map_chapters 0 \
   -c:v libsvtav1 \
   -preset 6 \
-  -crf 28 \
+  -crf "$crf" \
   -pix_fmt yuv420p \
   -c:a copy \
   -tag:v av01 \

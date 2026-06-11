@@ -39,8 +39,9 @@ func TestTaskProcessorAccumulatesEnvironment(t *testing.T) {
 	processor.SetEnvironment("IUO_USE_NVIDIA=1")
 	processor.SetEnvironment("IUO_IMAGE_SCORE=85")
 	processor.SetEnvironment("IUO_VIDEO_SCORE=95")
+	processor.SetEnvironment("IUO_VIDEO_CRF=28")
 
-	if len(processor.environment) != 3 || processor.environment[0] != "IUO_USE_NVIDIA=1" || processor.environment[1] != "IUO_IMAGE_SCORE=85" || processor.environment[2] != "IUO_VIDEO_SCORE=95" {
+	if len(processor.environment) != 4 || processor.environment[0] != "IUO_USE_NVIDIA=1" || processor.environment[1] != "IUO_IMAGE_SCORE=85" || processor.environment[2] != "IUO_VIDEO_SCORE=95" || processor.environment[3] != "IUO_VIDEO_CRF=28" {
 		t.Fatalf("unexpected task environment: %v", processor.environment)
 	}
 }

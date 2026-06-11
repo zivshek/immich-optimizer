@@ -86,6 +86,9 @@ tasks:
 	if err := registry.SetVideoScore("alice", 93); err != nil {
 		t.Fatal(err)
 	}
+	if err := registry.SetVideoCRF("alice", 30); err != nil {
+		t.Fatal(err)
+	}
 	profiles, err = registry.List()
 	if err != nil {
 		t.Fatal(err)
@@ -101,6 +104,12 @@ tasks:
 	}
 	if profiles[0].VideoScore != 93 {
 		t.Fatalf("video score was not applied: %d", profiles[0].VideoScore)
+	}
+	if profiles[0].VideoCRF != 30 {
+		t.Fatalf("video CRF was not applied: %d", profiles[0].VideoCRF)
+	}
+	if err := registry.SetVideoCRF("alice", 64); err == nil {
+		t.Fatal("video CRF above 63 was accepted")
 	}
 	imageSelected, err := store.SelectedMediaTaskConfig("alice", mediaTypeImage)
 	if err != nil || imageSelected != "custom/my-profile" {
@@ -149,7 +158,7 @@ func TestStandardAv1UsesFixedCrfAndPerceptualAv1UsesShorterSamples(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{"-c:v libsvtav1", "-preset 6", "-crf 28", "-noautorotate"} {
+	for _, expected := range []string{"-c:v libsvtav1", "-preset 6", `crf="${IUO_VIDEO_CRF:-28}"`, `-crf "$crf"`, "-noautorotate"} {
 		if !strings.Contains(string(standardScript), expected) {
 			t.Fatalf("standard AV1 script is missing %q", expected)
 		}

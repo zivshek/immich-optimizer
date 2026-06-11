@@ -115,6 +115,7 @@ func (store *StatsStore) init() error {
 			use_nvidia INTEGER NOT NULL DEFAULT 0,
 			image_score INTEGER NOT NULL DEFAULT 85,
 			video_score INTEGER NOT NULL DEFAULT 95,
+			video_crf INTEGER NOT NULL DEFAULT 28,
 			updated_at DATETIME NOT NULL
 		);
 	`)
@@ -137,6 +138,9 @@ func (store *StatsStore) init() error {
 		return err
 	}
 	if err := store.ensureColumn("profile_processing_options", "video_score", "INTEGER NOT NULL DEFAULT 95"); err != nil {
+		return err
+	}
+	if err := store.ensureColumn("profile_processing_options", "video_crf", "INTEGER NOT NULL DEFAULT 28"); err != nil {
 		return err
 	}
 	return nil
@@ -212,6 +216,30 @@ func (store *StatsStore) ProfileVideoScore(profile string) (int, error) {
 		return 0, fmt.Errorf("query profile video score: %w", err)
 	}
 	return score, nil
+}
+
+func (store *StatsStore) SetProfileVideoCRF(profile string, crf int) error {
+	_, err := store.db.Exec(`
+		INSERT INTO profile_processing_options (profile, video_crf, updated_at)
+		VALUES (?, ?, ?)
+		ON CONFLICT(profile) DO UPDATE SET video_crf = excluded.video_crf, updated_at = excluded.updated_at
+	`, profile, crf, time.Now().UTC())
+	if err != nil {
+		return fmt.Errorf("record profile video CRF: %w", err)
+	}
+	return nil
+}
+
+func (store *StatsStore) ProfileVideoCRF(profile string) (int, error) {
+	var crf int
+	err := store.db.QueryRow(`SELECT video_crf FROM profile_processing_options WHERE profile = ?`, profile).Scan(&crf)
+	if err == sql.ErrNoRows {
+		return 28, nil
+	}
+	if err != nil {
+		return 0, fmt.Errorf("query profile video CRF: %w", err)
+	}
+	return crf, nil
 }
 
 func (store *StatsStore) RecordMediaTaskConfigSelection(profile, mediaType, configName string) error {
