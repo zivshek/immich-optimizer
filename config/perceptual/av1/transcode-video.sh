@@ -33,9 +33,9 @@ ab-av1 auto-encode \
   --min-vmaf "$min_vmaf" \
   --max-encoded-percent 80 \
   --preset 6 \
-  --min-samples 3 \
-  --sample-every 8m \
-  --sample-duration 12s \
+  --min-samples 5 \
+  --sample-every 2m \
+  --sample-duration 6s \
   --vmaf "model=path=/opt/ab-av1/share/vmaf/model/${vmaf_model}" \
   --enc-input noautorotate
 

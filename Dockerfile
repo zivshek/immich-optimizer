@@ -72,6 +72,7 @@ RUN groupadd -r appuser && \
 
 COPY --from=app-builder /out/immich-optimizer /usr/local/bin/immich-optimizer
 COPY --from=caesium-builder /out/caesiumclt /usr/local/bin/caesiumclt
+RUN ffmpeg -hide_banner -encoders | grep libsvtav1
 COPY --chown=appuser:appuser config/standard/lossless /etc/immich-optimizer/config
 COPY --chown=appuser:appuser config/standard /etc/immich-optimizer/bundled-configs/standard
 

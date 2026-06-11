@@ -126,14 +126,15 @@ The dashboard lists every `tasks.yaml` found below
 `/etc/immich-optimizer/bundled-configs` and `/custom_profiles`. Each ingestion
 profile has independent image and video config dropdowns, so their tasks can be
 mixed without creating another combined config. Perceptual choices are
-single-purpose configs: `perceptual/webp`, `perceptual/avif`, `perceptual/av1`,
-and `perceptual/hevc`. Enable **Use NVIDIA** to make supported video configs use
-NVENC; perceptual AV1 intentionally remains SVT-AV1. A config appears only in
+single-purpose configs. These include `standard/av1-crf28`,
+`perceptual/webp`, `perceptual/avif`, `perceptual/av1`, and
+`perceptual/hevc`. Enable **Use NVIDIA** to make supported video configs use
+NVENC; both AV1 configs intentionally remain SVT-AV1. A config appears only in
 the dropdowns matching the extensions it declares. Custom entries appear as
 `custom/<folder>`. Recently selected configs appear first, followed by the
-remaining folder names alphabetically. Changes apply only to jobs started after
-changing a dropdown or NVIDIA toggle, and persist in the SQLite database across
-container restarts.
+remaining folder names alphabetically. Changes apply only to jobs started
+after changing a dropdown or NVIDIA toggle, and persist in the SQLite database
+across container restarts.
 `IUO_TASKS_FILE` initializes both selections when no dashboard selection has
 been saved. A custom config may contain only image tasks or only video tasks;
 its scripts remain relative to the folder containing its `tasks.yaml`.
@@ -250,7 +251,7 @@ IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/standard/balanced-caesium-
 IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/standard/balanced-avif-nvidia-ffmpeg/tasks.yaml
 
 # Dashboard image choices: perceptual/webp, perceptual/avif
-# Dashboard video choices: perceptual/av1, perceptual/hevc
+# Dashboard video choices: standard/av1-crf28, perceptual/av1, perceptual/hevc
 ```
 
 The first three profiles are available in the standard `:latest` image. The
@@ -258,7 +259,8 @@ perceptual image and video choices require
 `ghcr.io/zivshek/immich-optimizer:perceptual`.
 
 For WebP images with SVT-AV1 videos, select `perceptual/webp` in the image
-dropdown and `perceptual/av1` in the video dropdown.
+dropdown and either `standard/av1-crf28` or `perceptual/av1` in the video
+dropdown.
 
 The JPEG XL profile uses distance `1.0`; the Caesium profile keeps JPEG/JPG as
 standard JPEG at quality `85`; and the AVIF profile converts JPEG, PNG, and
@@ -279,6 +281,15 @@ smallest output meeting the selected score. The perceptual AV1 video config uses
 defaults to VMAF `95`, and SVT-AV1. It is
 CPU-heavy, but it searches for an AV1 encode that meets a perceptual quality
 target instead of applying one fixed quality number to every file.
+
+The standard `av1-crf28` video config performs one SVT-AV1 encode at preset
+`6` and CRF `28`, without VMAF sampling. It is substantially faster and uses
+less CPU time than perceptual auto-encode, while retaining high visual quality
+for typical phone videos. It preserves source frame orientation, copies audio
+and chapters, and restores and validates embedded metadata.
+
+The perceptual AV1 config samples at least five six-second sections, spaced
+every two minutes, before selecting the full encode settings.
 
 The perceptual HEVC video config uses `ab-av1` with `libx265`, VMAF `95`, 8-bit
 `yuv420p`, and `hvc1` MP4 output. It generally saves less space than AV1, but

@@ -142,6 +142,35 @@ func TestBundledPerceptualConfigsAreSinglePurpose(t *testing.T) {
 	}
 }
 
+func TestStandardAv1UsesFixedCrfAndPerceptualAv1UsesShorterSamples(t *testing.T) {
+	standardScript, err := os.ReadFile(
+		filepath.Join("config", "standard", "av1-crf28", "transcode-video.sh"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, expected := range []string{"-c:v libsvtav1", "-preset 6", "-crf 28", "-noautorotate"} {
+		if !strings.Contains(string(standardScript), expected) {
+			t.Fatalf("standard AV1 script is missing %q", expected)
+		}
+	}
+	if strings.Contains(string(standardScript), "auto-encode") {
+		t.Fatal("standard AV1 script must not use perceptual auto-encode")
+	}
+
+	perceptualScript, err := os.ReadFile(
+		filepath.Join("config", "perceptual", "av1", "transcode-video.sh"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, expected := range []string{"--min-samples 5", "--sample-every 2m", "--sample-duration 6s"} {
+		if !strings.Contains(string(perceptualScript), expected) {
+			t.Fatalf("perceptual AV1 script is missing %q", expected)
+		}
+	}
+}
+
 func TestPerceptualImagesUseDashboardSsimulacra2Target(t *testing.T) {
 	avifScript, err := os.ReadFile(filepath.Join("config", "perceptual", "avif", "transcode-image.sh"))
 	if err != nil {
