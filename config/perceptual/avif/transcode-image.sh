@@ -5,11 +5,21 @@ src=$1
 dst=$2
 target_score="${IUO_IMAGE_SCORE:-85}"
 
-oavif \
-  --score-tgt "$target_score" \
-  --tolerance 2 \
-  --max-threads 8 \
-  "$src" "$dst"
+encode_avif() {
+  tenbit=$1
+  oavif \
+    --score-tgt "$target_score" \
+    --tolerance 2 \
+    --max-threads 8 \
+    --tenbit "$tenbit" \
+    "$src" "$dst"
+}
+
+if ! encode_avif 1; then
+  echo "warning: 10-bit AVIF encode failed; retrying with 8-bit output" >&2
+  rm -f "$dst"
+  encode_avif 0
+fi
 
 exiftool -overwrite_original -m \
   -tagsFromFile "$src" \

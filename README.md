@@ -274,7 +274,9 @@ still-image encoder, which is included in the published container.
 
 The dashboard's per-profile **Image Score** defaults to SSIMULACRA2 `85` and
 applies to both perceptual image configs. The perceptual AVIF image config uses
-that value with `oavif --score-tgt`. The perceptual
+that value with `oavif --score-tgt`. It prefers 10-bit AVIF output and
+automatically retries with 8-bit output when the encoder rejects the 10-bit
+image path. The perceptual
 WebP image config searches `cwebp` qualities with `fssimu2` and selects the
 smallest output meeting the selected score. The perceptual AV1 video config uses
 `ab-av1 auto-encode` with the dashboard's per-profile **Video Score**, which

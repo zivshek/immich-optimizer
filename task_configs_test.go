@@ -185,7 +185,13 @@ func TestPerceptualImagesUseDashboardSsimulacra2Target(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{`target_score="${IUO_IMAGE_SCORE:-85}"`, `--score-tgt "$target_score"`} {
+	for _, expected := range []string{
+		`target_score="${IUO_IMAGE_SCORE:-85}"`,
+		`--score-tgt "$target_score"`,
+		`--tenbit "$tenbit"`,
+		"if ! encode_avif 1",
+		"encode_avif 0",
+	} {
 		if !strings.Contains(string(avifScript), expected) {
 			t.Fatalf("perceptual AVIF script is missing %q", expected)
 		}
