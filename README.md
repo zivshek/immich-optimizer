@@ -87,7 +87,7 @@ Images are published automatically by GitHub Actions:
 
 Use `ghcr.io/zivshek/immich-optimizer:latest` for standard profiles. Use
 `ghcr.io/zivshek/immich-optimizer:perceptual` for profiles that require
-`oavif`, `ab-av1`, VMAF, or the dedicated NVENC-enabled FFmpeg build. Keeping
+`fssimu2`, `ab-av1`, VMAF, or the dedicated NVENC-enabled FFmpeg build. Keeping
 the expensive perceptual toolchain in a separate AMD64 image makes normal
 multi-architecture publishes much faster.
 
@@ -273,12 +273,10 @@ The AVIF profile uses ImageMagick with Debian's `libheif-plugin-aomenc` AV1
 still-image encoder, which is included in the published container.
 
 The dashboard's per-profile **Image Score** defaults to SSIMULACRA2 `85` and
-applies to both perceptual image configs. The perceptual AVIF image config uses
-that value with `oavif --score-tgt`. It prefers 10-bit AVIF output and
-automatically retries with 8-bit output when the encoder rejects the 10-bit
-image path. The perceptual
-WebP image config searches `cwebp` qualities with `fssimu2` and selects the
-smallest output meeting the selected score. The perceptual AV1 video config uses
+applies to both perceptual image configs. The perceptual AVIF image config
+searches ImageMagick AVIF qualities with `fssimu2`; the perceptual WebP image
+config searches `cwebp` qualities with `fssimu2`. Both select the smallest
+output meeting the selected score. The perceptual AV1 video config uses
 `ab-av1 auto-encode` with the dashboard's per-profile **Video Score**, which
 defaults to VMAF `95`, and SVT-AV1. It is
 CPU-heavy, but it searches for an AV1 encode that meets a perceptual quality

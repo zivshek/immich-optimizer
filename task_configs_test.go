@@ -187,14 +187,17 @@ func TestPerceptualImagesUseDashboardSsimulacra2Target(t *testing.T) {
 	}
 	for _, expected := range []string{
 		`target_score="${IUO_IMAGE_SCORE:-85}"`,
-		`--score-tgt "$target_score"`,
-		`--tenbit "$tenbit"`,
-		"if ! encode_avif 1",
-		"encode_avif 0",
+		"magick",
+		"fssimu2",
+		"AVIF quality",
+		"selected AVIF quality",
 	} {
 		if !strings.Contains(string(avifScript), expected) {
 			t.Fatalf("perceptual AVIF script is missing %q", expected)
 		}
+	}
+	if strings.Contains(string(avifScript), "oavif") {
+		t.Fatal("perceptual AVIF script must not use the broken oavif encoder path")
 	}
 
 	webpScript, err := os.ReadFile(filepath.Join("config", "perceptual", "webp", "transcode-image.sh"))

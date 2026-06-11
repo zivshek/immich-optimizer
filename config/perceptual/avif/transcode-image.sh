@@ -3,23 +3,49 @@ set -eu
 
 src=$1
 dst=$2
+workdir=$(dirname "$dst")
+candidate="${workdir}/candidate.avif"
 target_score="${IUO_IMAGE_SCORE:-85}"
+low=1
+high=100
+best_quality=
+best_score=
 
-encode_avif() {
-  tenbit=$1
-  oavif \
-    --score-tgt "$target_score" \
-    --tolerance 2 \
-    --max-threads 8 \
-    --tenbit "$tenbit" \
-    "$src" "$dst"
+trap 'rm -f "$candidate"' EXIT
+
+score_candidate() {
+  score=$(fssimu2 "$src" "$candidate" 2>&1 | tail -n 1 | tr -d '[:space:]')
+  if ! printf '%s\n' "$score" | grep -Eq '^-?[0-9]+([.][0-9]+)?$'; then
+    echo "unable to read SSIMULACRA2 score from fssimu2 output: ${score}" >&2
+    exit 1
+  fi
 }
 
-if ! encode_avif 1; then
-  echo "warning: 10-bit AVIF encode failed; retrying with 8-bit output" >&2
-  rm -f "$dst"
-  encode_avif 0
+while [ "$low" -le "$high" ]; do
+  quality=$(( (low + high) / 2 ))
+  magick "$src" -quality "$quality" "$candidate"
+  score_candidate
+  echo "AVIF quality ${quality}: SSIMULACRA2 ${score}"
+
+  if awk "BEGIN { exit !(${score} >= ${target_score}) }"; then
+    best_quality=$quality
+    best_score=$score
+    high=$((quality - 1))
+  else
+    low=$((quality + 1))
+  fi
+done
+
+if [ -z "$best_quality" ]; then
+  best_quality=100
+  magick "$src" -quality "$best_quality" "$candidate"
+  score_candidate
+  best_score=$score
+  echo "warning: AVIF could not meet SSIMULACRA2 ${target_score}; using quality ${best_quality} at score ${best_score}" >&2
 fi
+
+echo "selected AVIF quality ${best_quality} at SSIMULACRA2 ${best_score}"
+magick "$src" -quality "$best_quality" "$dst"
 
 exiftool -overwrite_original -m \
   -tagsFromFile "$src" \
