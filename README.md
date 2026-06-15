@@ -270,6 +270,9 @@ metadata after conversion and use the same orientation-preserving NVIDIA video
 task. These image conversions are lossy and cannot reconstruct the original
 files bit-for-bit.
 
+Metadata-copying profiles enable ExifTool's `ExtractEmbedded` option so tags
+stored inside embedded media data are considered during copying and validation.
+
 The AVIF profile uses ImageMagick with Debian's `libheif-plugin-aomenc` AV1
 still-image encoder, which is included in the published container.
 

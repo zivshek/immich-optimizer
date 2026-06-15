@@ -227,6 +227,30 @@ func TestPerceptualVideosUseDashboardVmafTarget(t *testing.T) {
 	}
 }
 
+func TestMetadataCopyScriptsExtractEmbeddedTags(t *testing.T) {
+	err := filepath.Walk("config", func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() || filepath.Ext(path) != ".sh" {
+			return nil
+		}
+		contents, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		script := string(contents)
+		if strings.Contains(strings.ToLower(script), "tagsfromfile") &&
+			!strings.Contains(script, "ExtractEmbedded=1") {
+			t.Errorf("%s copies metadata without ExtractEmbedded=1", path)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestTaskConfigRegistryMigratesLegacyNvidiaPerceptualProfile(t *testing.T) {
 	root := t.TempDir()
 	writeTestTaskConfig(t, root, "perceptual/webp", []byte(`

@@ -1,4 +1,4 @@
-#!/bin/sh
+﻿#!/bin/sh
 set -eu
 
 src=$1
@@ -34,6 +34,7 @@ ffmpeg -hide_banner -y \
 # writable QuickTime/Android metadata such as GPS, camera model, capture dates,
 # and the display rotation matrix.
 exiftool -overwrite_original -m \
+  -api ExtractEmbedded=1 \
   -api QuickTimeUTC=1 \
   -api LargeFileSupport=1 \
   -tagsFromFile "$src" \
@@ -41,8 +42,8 @@ exiftool -overwrite_original -m \
   "$dst"
 
 for tag in Rotation GPSCoordinates Model CreateDate; do
-  src_value=$(exiftool -s3 "-$tag" "$src")
-  dst_value=$(exiftool -s3 "-$tag" "$dst")
+  src_value=$(exiftool -api ExtractEmbedded=1 -s3 "-$tag" "$src")
+  dst_value=$(exiftool -api ExtractEmbedded=1 -s3 "-$tag" "$dst")
   if [ -n "$src_value" ] && [ -z "$dst_value" ]; then
     echo "metadata validation failed: output is missing $tag" >&2
     exit 1

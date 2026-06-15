@@ -9,7 +9,7 @@ tasks:
       cjxl - "{{.dst_folder}}/{{.name}}-new.jxl"
       -q 80
       --effort=7
-      && exiftool -overwrite_original
+      && exiftool -overwrite_original -api ExtractEmbedded=1
       -tagsfromfile "{{.src_folder}}/{{.name}}.{{.extension}}"
       -all:all -m -Orientation=1 "{{.dst_folder}}/{{.name}}-new.jxl"
     extensions:
@@ -36,7 +36,7 @@ tasks:
       -c:v hevc_vaapi -profile:v main10 -qp 22
       -c:a libopus -b:a 128k
       "{{.dst_folder}}/{{.name}}-new.mp4"
-      && exiftool -overwrite_original
+      && exiftool -overwrite_original -api ExtractEmbedded=1
       -tagsfromfile "{{.src_folder}}/{{.name}}.{{.extension}}"
       -all:all -m -Orient "{{.dst_folder}}/{{.name}}-new.mp4"
     extensions:

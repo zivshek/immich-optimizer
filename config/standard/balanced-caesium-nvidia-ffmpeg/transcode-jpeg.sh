@@ -1,4 +1,4 @@
-#!/bin/sh
+﻿#!/bin/sh
 set -eu
 
 src=$1
@@ -14,13 +14,14 @@ if [ "$generated" != "$dst" ]; then
 fi
 
 exiftool -overwrite_original -m \
+  -api ExtractEmbedded=1 \
   -tagsFromFile "$src" \
   -all:all \
   "$dst"
 
 for tag in GPSPosition Model DateTimeOriginal; do
-  src_value=$(exiftool -s3 "-$tag" "$src")
-  dst_value=$(exiftool -s3 "-$tag" "$dst")
+  src_value=$(exiftool -api ExtractEmbedded=1 -s3 "-$tag" "$src")
+  dst_value=$(exiftool -api ExtractEmbedded=1 -s3 "-$tag" "$dst")
   if [ -n "$src_value" ] && [ -z "$dst_value" ]; then
     echo "metadata validation failed: output is missing $tag" >&2
     exit 1

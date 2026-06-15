@@ -53,7 +53,7 @@ function Get-MetadataValue {
         [string]$Tag
     )
 
-    $value = & $ExifTool -s3 "-$Tag" $Path
+    $value = & $ExifTool -api ExtractEmbedded=1 -s3 "-$Tag" $Path
     if ($LASTEXITCODE -ne 0) {
         throw "ExifTool failed while reading $Tag from $Path"
     }
@@ -68,7 +68,7 @@ function Copy-And-ValidateMetadata {
         [switch]$QuickTime
     )
 
-    $arguments = @("-overwrite_original", "-m")
+    $arguments = @("-overwrite_original", "-m", "-api", "ExtractEmbedded=1")
     if ($QuickTime) {
         $arguments += @("-api", "QuickTimeUTC=1", "-api", "LargeFileSupport=1")
     }
