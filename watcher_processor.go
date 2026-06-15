@@ -78,14 +78,17 @@ func (fw *FileWatcher) processFile(originalFilePath string) {
 
 	tp, err := fw.createTaskProcessor(originalFilePath, active.File, fw.nvidiaEnabled(), fw.currentImageScore(), fw.currentVideoScore(), fw.currentVideoCRF())
 	if err != nil {
-		fw.logger.Printf("Error creating task processor for %s: %v", originalFilePath, err)
-		fw.recordFailure(filepath.Base(originalFilePath), originalFilePath, err)
+		if fw.handleProcessingError(originalFilePath, err) {
+			fw.cleanupOriginalFile(originalFilePath)
+		}
 		return
 	}
 	defer tp.Close()
 
 	if err := tp.Process(active.Config.Tasks); err != nil {
-		fw.handleProcessingError(originalFilePath, err)
+		if fw.handleProcessingError(originalFilePath, err) {
+			fw.cleanupOriginalFile(originalFilePath)
+		}
 		return
 	}
 
@@ -143,13 +146,11 @@ func (fw *FileWatcher) createTaskProcessor(filePath, configFile string, useNvidi
 	return tp, nil
 }
 
-// handleProcessingError handles errors that occur during file processing
-func (fw *FileWatcher) handleProcessingError(filePath string, err error) {
+// handleProcessingError falls back to uploading the original after optimization fails.
+func (fw *FileWatcher) handleProcessingError(filePath string, err error) bool {
 	fw.logger.Printf("Error processing file %s: %v", filePath, err)
-	fw.recordFailure(filepath.Base(filePath), filePath, err)
-	if copyErr := copyFileToUndone(filePath, fw.watchDir, fw.profile.UndoneDir); copyErr != nil {
-		fw.logger.Printf("Error copying file %s to undone directory: %v", filePath, copyErr)
-	}
+	fw.logger.Printf("Uploading original file after optimization failure: %s", filePath)
+	return fw.uploadOriginalFile(filePath)
 }
 
 // handleProcessingSuccess handles successful file processing and determines upload strategy

@@ -51,7 +51,8 @@ The **Immich Optimizer** container monitors the mounted **watched folder** and e
 ### 2. Robust Failover Logic
 
 * **Success:** Original file is deleted.
-* **Failure:** If the optimization or upload fails for any reason (e.g., corrupt file, network interruption, Immich server downtime), the Original File is moved to the **undone/** subfolder. This ensures **zero data loss** and reserves the photo for manual troubleshooting.
+* **Optimization failure:** If optimization fails, the Original File is uploaded to Immich instead.
+* **Upload failure:** If uploading the optimized file or original fallback fails, the source is copied to the **undone/** subfolder. This ensures **zero data loss** and reserves the file for manual troubleshooting.
 
 ---
 

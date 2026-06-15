@@ -27,7 +27,8 @@ for server-side processing **before** assets are uploaded to Immich.
   dimensions and display rotation, restores writable GPS/camera/date metadata,
   and validates critical metadata before upload.
 - **Safer processing:** Originals are deleted only after a successful Immich
-  upload. Failed files are copied to the profile's `undone` directory.
+  upload. If optimization fails, the original is uploaded instead. Files are
+  copied to the profile's `undone` directory only when uploading also fails.
 - **FolderSync-aware watching:** Handles atomic file placement and hardlinks,
   and ignores hidden files/directories such as `.trashed-*`.
 - **Fork publishing:** A lightweight multi-architecture standard image and an
