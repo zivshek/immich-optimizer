@@ -10,6 +10,8 @@ import (
 	"strings"
 )
 
+const imageMinimumReductionPercent = 15
+
 // isTempFile checks if a file is a known temporary file format used by sync clients
 func (fw *FileWatcher) isTempFile(filePath string) bool {
 	ext := strings.ToLower(filepath.Ext(filePath))
@@ -163,7 +165,23 @@ func (fw *FileWatcher) handleProcessingSuccess(originalFilePath string, tp *Task
 
 // shouldUploadProcessedFile determines if the processed file should be uploaded instead of original
 func (fw *FileWatcher) shouldUploadProcessedFile(tp *TaskProcessor) bool {
-	return tp.ProcessedFile != nil && tp.ProcessedSize > 0 && tp.OriginalSize > tp.ProcessedSize
+	if tp.ProcessedFile == nil || tp.ProcessedSize <= 0 || tp.OriginalSize <= tp.ProcessedSize {
+		return false
+	}
+	if mediaTypeForExtension(tp.OriginalExtension) != mediaTypeImage {
+		return true
+	}
+	savedBytes := tp.OriginalSize - tp.ProcessedSize
+	if savedBytes*100 >= tp.OriginalSize*imageMinimumReductionPercent {
+		return true
+	}
+	fw.logger.Printf(
+		"Optimized image saved less than %d%% (%s -> %s); uploading original file instead",
+		imageMinimumReductionPercent,
+		humanReadableSize(tp.OriginalSize),
+		humanReadableSize(tp.ProcessedSize),
+	)
+	return false
 }
 
 // uploadProcessedFile uploads the optimized version of the file

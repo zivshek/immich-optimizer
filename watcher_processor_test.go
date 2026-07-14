@@ -191,6 +191,67 @@ func TestTaskProcessorAcceptsPassthroughTask(t *testing.T) {
 	}
 }
 
+func TestShouldUploadProcessedFileRequiresImageSavingsThreshold(t *testing.T) {
+	watcher := &FileWatcher{logger: log.New(io.Discard, "", 0)}
+	tests := []struct {
+		name              string
+		originalExtension string
+		originalSize      int64
+		processedSize     int64
+		want              bool
+	}{
+		{
+			name:              "image below threshold",
+			originalExtension: ".jpg",
+			originalSize:      1000,
+			processedSize:     860,
+			want:              false,
+		},
+		{
+			name:              "image at threshold",
+			originalExtension: ".jpg",
+			originalSize:      1000,
+			processedSize:     850,
+			want:              true,
+		},
+		{
+			name:              "image above threshold",
+			originalExtension: ".heic",
+			originalSize:      1000,
+			processedSize:     800,
+			want:              true,
+		},
+		{
+			name:              "video keeps any savings",
+			originalExtension: ".mp4",
+			originalSize:      1000,
+			processedSize:     990,
+			want:              true,
+		},
+		{
+			name:              "larger output is rejected",
+			originalExtension: ".jpg",
+			originalSize:      1000,
+			processedSize:     1000,
+			want:              false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			processor := &TaskProcessor{
+				OriginalExtension: test.originalExtension,
+				OriginalSize:      test.originalSize,
+				ProcessedFile:     os.Stdin,
+				ProcessedSize:     test.processedSize,
+			}
+			if got := watcher.shouldUploadProcessedFile(processor); got != test.want {
+				t.Fatalf("shouldUploadProcessedFile() = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
 func TestIsHiddenPath(t *testing.T) {
 	watchDir := t.TempDir()
 	watcher := &FileWatcher{watchDir: watchDir}

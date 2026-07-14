@@ -29,6 +29,8 @@ for server-side processing **before** assets are uploaded to Immich.
 - **Safer processing:** Originals are deleted only after a successful Immich
   upload. If optimization fails, the original is uploaded instead. Files are
   copied to the profile's `undone` directory only when uploading also fails.
+- **Image savings threshold:** Optimized images are uploaded only when they
+  reduce file size by at least `15%`; otherwise the original image is uploaded.
 - **FolderSync-aware watching:** Handles atomic file placement and hardlinks,
   and ignores hidden files/directories such as `.trashed-*`.
 - **Fork publishing:** A lightweight multi-architecture standard image and an
