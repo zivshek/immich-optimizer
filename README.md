@@ -130,7 +130,7 @@ The dashboard lists every `tasks.yaml` found below
 profile has independent image and video config dropdowns, so their tasks can be
 mixed without creating another combined config. Perceptual choices are
 single-purpose configs. These include `standard/av1-crf28`,
-`perceptual/webp`, `perceptual/avif`, `perceptual/av1`, and
+`perceptual/webp`, `perceptual/avif`, `perceptual/jxl`, `perceptual/av1`, and
 `perceptual/hevc`. Enable **Use NVIDIA** to make supported video configs use
 NVENC; both AV1 configs intentionally remain SVT-AV1. A config appears only in
 the dropdowns matching the extensions it declares. Custom entries appear as
@@ -253,7 +253,7 @@ IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/standard/balanced-caesium-
 # AVIF: stronger compression with wider support than JPEG XL
 IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/standard/balanced-avif-nvidia-ffmpeg/tasks.yaml
 
-# Dashboard image choices: perceptual/webp, perceptual/avif
+# Dashboard image choices: perceptual/webp, perceptual/avif, perceptual/jxl
 # Dashboard video choices: standard/av1-crf28, perceptual/av1, perceptual/hevc
 ```
 
@@ -279,10 +279,11 @@ The AVIF profile uses ImageMagick with Debian's `libheif-plugin-aomenc` AV1
 still-image encoder, which is included in the published container.
 
 The dashboard's per-profile **Image Score** defaults to SSIMULACRA2 `85` and
-applies to both perceptual image configs. The perceptual AVIF image config
-searches ImageMagick AVIF qualities with `fssimu2`; the perceptual WebP image
-config searches `cwebp` qualities with `fssimu2`. Both select the smallest
-output meeting the selected score. The perceptual AV1 video config uses
+applies to perceptual image configs. The perceptual AVIF image config searches
+ImageMagick AVIF qualities with `fssimu2`; the perceptual WebP image config
+searches `cwebp` qualities with `fssimu2`; and the perceptual JXL image config
+searches `cjxl` qualities with `fssimu2`. All select the smallest output
+meeting the selected score. The perceptual AV1 video config uses
 `ab-av1 auto-encode` with the dashboard's per-profile **Video Score**, which
 defaults to VMAF `95`, and SVT-AV1. It is
 CPU-heavy, but it searches for an AV1 encode that meets a perceptual quality

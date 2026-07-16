@@ -277,7 +277,12 @@ RUN fssimu2 --version && \
     magick -size 64x64 gradient: /tmp/avif-smoke.png && \
     magick /tmp/avif-smoke.png -quality 80 /tmp/avif-smoke.avif && \
     fssimu2 /tmp/avif-smoke.png /tmp/avif-smoke.avif && \
+    magick -size 64x64 gradient: /tmp/jxl-smoke.png && \
+    cjxl --lossless_jpeg=0 -q 80 --effort=1 /tmp/jxl-smoke.png /tmp/jxl-smoke.jxl && \
+    djxl /tmp/jxl-smoke.jxl /tmp/jxl-smoke-decoded.png && \
+    fssimu2 /tmp/jxl-smoke.png /tmp/jxl-smoke-decoded.png && \
     rm /tmp/avif-smoke.png /tmp/avif-smoke.avif && \
+    rm /tmp/jxl-smoke.png /tmp/jxl-smoke.jxl /tmp/jxl-smoke-decoded.png && \
     ab-av1 --version && \
     /opt/ab-av1/bin/ffmpeg -hide_banner -filters | grep libvmaf && \
     /opt/ab-av1/bin/ffmpeg -hide_banner -encoders | grep libsvtav1 && \

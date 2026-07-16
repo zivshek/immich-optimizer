@@ -1,0 +1,36 @@
+tasks:
+  - name: perceptual-jxl
+    command: >
+      sh ./transcode-image.sh
+      "{{.src_folder}}/{{.name}}.{{.extension}}"
+      "{{.dst_folder}}/{{.name}}.jxl"
+    extensions:
+      - jpeg
+      - jpg
+      - png
+      - webp
+      - heic
+      - heif
+
+  - name: passthrough-images
+    command: ""
+    extensions:
+      - avif
+      - bmp
+      - dng
+      - exr
+      - gif
+      - insp
+      - jxl
+      - pam
+      - pfm
+      - pgm
+      - pgx
+      - pnm
+      - ppm
+      - psd
+      - raw
+      - rw2
+      - svg
+      - tif
+      - tiff

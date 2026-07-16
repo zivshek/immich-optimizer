@@ -140,7 +140,7 @@ func TestBundledPerceptualConfigsAreSinglePurpose(t *testing.T) {
 		names = append(names, name)
 	}
 	sort.Strings(names)
-	expected := []string{"perceptual/av1", "perceptual/avif", "perceptual/hevc", "perceptual/webp"}
+	expected := []string{"perceptual/av1", "perceptual/avif", "perceptual/hevc", "perceptual/jxl", "perceptual/webp"}
 	if len(names) != len(expected) {
 		t.Fatalf("unexpected perceptual configs: %v", names)
 	}
@@ -207,6 +207,24 @@ func TestPerceptualImagesUseDashboardSsimulacra2Target(t *testing.T) {
 	for _, expected := range []string{`target_score="${IUO_IMAGE_SCORE:-85}"`, "fssimu2", "2>&1", "unable to read SSIMULACRA2 score", "selected WebP quality"} {
 		if !strings.Contains(string(webpScript), expected) {
 			t.Fatalf("perceptual WebP script is missing %q", expected)
+		}
+	}
+
+	jxlScript, err := os.ReadFile(filepath.Join("config", "perceptual", "jxl", "transcode-image.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, expected := range []string{
+		`target_score="${IUO_IMAGE_SCORE:-85}"`,
+		"cjxl --lossless_jpeg=0",
+		"djxl",
+		"fssimu2",
+		"JXL quality",
+		"selected JXL quality",
+		"ExtractEmbedded=1",
+	} {
+		if !strings.Contains(string(jxlScript), expected) {
+			t.Fatalf("perceptual JXL script is missing %q", expected)
 		}
 	}
 }
