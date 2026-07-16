@@ -5,6 +5,15 @@ src=$1
 dst=$2
 crf="${IUO_VIDEO_CRF:-28}"
 
+video_codec=$(ffprobe -v error -select_streams v:0 \
+  -show_entries stream=codec_name \
+  -of default=noprint_wrappers=1:nokey=1 "$src")
+if [ "$video_codec" = "av1" ]; then
+  echo "input video is already AV1; passing through without transcoding"
+  cp "$src" "$dst"
+  exit 0
+fi
+
 ffmpeg -hide_banner -y \
   -noautorotate \
   -i "$src" \
