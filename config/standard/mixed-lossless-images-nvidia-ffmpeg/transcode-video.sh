@@ -1,8 +1,20 @@
-﻿#!/bin/sh
+#!/bin/sh
 set -eu
 
 src=$1
 dst=$2
+
+has_apac=$(ffprobe -v error -select_streams a \
+  -show_entries stream=codec_tag_string \
+  -of default=noprint_wrappers=1:nokey=1 "$src" | grep -xq apac && echo 1 || echo 0)
+if [ "$has_apac" = "1" ] && [ "${IUO_DROP_APAC:-0}" != "1" ]; then
+  echo "input video contains APAC spatial audio; passing through original to preserve it"
+  cp "$src" "$dst"
+  exit 0
+fi
+if [ "$has_apac" = "1" ]; then
+  echo "input video contains APAC spatial audio; dropping APAC and keeping primary audio only"
+fi
 
 # Keep the stored frame dimensions unchanged and preserve the source display
 # rotation metadata. No scale, crop, or autorotation filter is applied.
@@ -12,7 +24,7 @@ ffmpeg -hide_banner -y \
   -noautorotate \
   -i "$src" \
   -map 0:v:0 \
-  -map 0:a? \
+  -map 0:a:0? \
   -map_metadata 0 \
   -map_chapters 0 \
   -c:v hevc_nvenc \

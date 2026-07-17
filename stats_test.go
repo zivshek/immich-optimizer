@@ -120,6 +120,13 @@ func TestStatsStorePersistsIndependentMediaTaskConfigs(t *testing.T) {
 	if err != nil || !enabled {
 		t.Fatalf("unexpected NVIDIA option: %v, %v", enabled, err)
 	}
+	if err := store.SetProfileDropAPAC("alice", true); err != nil {
+		t.Fatal(err)
+	}
+	dropAPAC, err := store.ProfileDropAPAC("alice")
+	if err != nil || !dropAPAC {
+		t.Fatalf("unexpected APAC option: %v, %v", dropAPAC, err)
+	}
 	if err := store.SetProfileImageScore("alice", 87); err != nil {
 		t.Fatal(err)
 	}

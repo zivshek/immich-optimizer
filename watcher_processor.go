@@ -78,7 +78,7 @@ func (fw *FileWatcher) processFile(originalFilePath string) {
 		return
 	}
 
-	tp, err := fw.createTaskProcessor(originalFilePath, active.File, fw.nvidiaEnabled(), fw.currentImageScore(), fw.currentVideoScore(), fw.currentVideoCRF())
+	tp, err := fw.createTaskProcessor(originalFilePath, active.File, fw.nvidiaEnabled(), fw.dropAPACEnabled(), fw.currentImageScore(), fw.currentVideoScore(), fw.currentVideoCRF())
 	if err != nil {
 		if fw.handleProcessingError(originalFilePath, err) {
 			fw.cleanupOriginalFile(originalFilePath)
@@ -124,7 +124,7 @@ func (fw *FileWatcher) shouldOptimizeFile(filePath string, config *Config) bool 
 }
 
 // createTaskProcessor creates and configures a new task processor for the file
-func (fw *FileWatcher) createTaskProcessor(filePath, configFile string, useNvidia bool, imageScore, videoScore, videoCRF int) (*TaskProcessor, error) {
+func (fw *FileWatcher) createTaskProcessor(filePath, configFile string, useNvidia, dropAPAC bool, imageScore, videoScore, videoCRF int) (*TaskProcessor, error) {
 	tp, err := NewTaskProcessor(filePath)
 	if err != nil {
 		return nil, err
@@ -140,6 +140,11 @@ func (fw *FileWatcher) createTaskProcessor(filePath, configFile string, useNvidi
 		tp.SetEnvironment("IUO_USE_NVIDIA=1")
 	} else {
 		tp.SetEnvironment("IUO_USE_NVIDIA=0")
+	}
+	if dropAPAC {
+		tp.SetEnvironment("IUO_DROP_APAC=1")
+	} else {
+		tp.SetEnvironment("IUO_DROP_APAC=0")
 	}
 	tp.SetEnvironment(fmt.Sprintf("IUO_IMAGE_SCORE=%d", imageScore))
 	tp.SetEnvironment(fmt.Sprintf("IUO_VIDEO_SCORE=%d", videoScore))

@@ -31,6 +31,7 @@ type FileWatcher struct {
 	imageConfig    taskConfigSelection
 	videoConfig    taskConfigSelection
 	useNvidia      bool
+	dropAPAC       bool
 	imageScore     int
 	videoScore     int
 	videoCRF       int
@@ -132,6 +133,19 @@ func (fw *FileWatcher) setNvidiaEnabled(enabled bool) {
 	defer fw.configMu.Unlock()
 	fw.useNvidia = enabled
 	fw.logger.Printf("Profile %s: NVIDIA processing %s", fw.profile.Name, map[bool]string{true: "enabled", false: "disabled"}[enabled])
+}
+
+func (fw *FileWatcher) dropAPACEnabled() bool {
+	fw.configMu.RLock()
+	defer fw.configMu.RUnlock()
+	return fw.dropAPAC
+}
+
+func (fw *FileWatcher) setDropAPACEnabled(enabled bool) {
+	fw.configMu.Lock()
+	defer fw.configMu.Unlock()
+	fw.dropAPAC = enabled
+	fw.logger.Printf("Profile %s: APAC spatial audio %s", fw.profile.Name, map[bool]string{true: "will be dropped when present", false: "will preserve by uploading originals"}[enabled])
 }
 
 func (fw *FileWatcher) currentImageScore() int {

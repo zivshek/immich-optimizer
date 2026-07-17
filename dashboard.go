@@ -96,6 +96,7 @@ func (dashboard *DashboardServer) handleSelectTaskConfig(w http.ResponseWriter, 
 		ImageConfig string `json:"image_config"`
 		VideoConfig string `json:"video_config"`
 		UseNvidia   bool   `json:"use_nvidia"`
+		DropAPAC    bool   `json:"drop_apac"`
 		ImageScore  int    `json:"image_score"`
 		VideoScore  int    `json:"video_score"`
 		VideoCRF    int    `json:"video_crf"`
@@ -115,6 +116,10 @@ func (dashboard *DashboardServer) handleSelectTaskConfig(w http.ResponseWriter, 
 		return
 	}
 	if err := dashboard.configs.SetNvidia(profile, selection.UseNvidia); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := dashboard.configs.SetDropAPAC(profile, selection.DropAPAC); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -225,7 +230,7 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:9px;bord
 <div class="card"><div class="label">Total Reduction</div><div class="value good" id="reduction">0%</div></div>
 </section>
 <section class="dashboard-section">
-<div class="panel"><div class="panel-header"><h2>Media Configurations</h2><span class="config-status" id="config-status"></span></div><table><thead><tr><th>Profile</th><th>Image Config</th><th>Image Score</th><th>Video Config</th><th>Video Score</th><th>Video CRF</th><th>NVIDIA</th></tr></thead><tbody id="task-configs"></tbody></table></div>
+<div class="panel"><div class="panel-header"><h2>Media Configurations</h2><span class="config-status" id="config-status"></span></div><table><thead><tr><th>Profile</th><th>Image Config</th><th>Image Score</th><th>Video Config</th><th>Video Score</th><th>Video CRF</th><th>NVIDIA</th><th>APAC Audio</th></tr></thead><tbody id="task-configs"></tbody></table></div>
 </section>
 <section class="dashboard-section">
 <div class="panel"><div class="panel-header"><h2>Recent Jobs</h2></div><table><thead><tr><th>Time</th><th>Profile</th><th>File</th><th>Resolution</th><th>Original Size</th><th>Compressed Size</th><th>Saved</th><th>Action</th><th>Reduction</th></tr></thead><tbody id="recent"></tbody></table><div class="pagination"><button id="previous-page" type="button">Previous</button><span id="page-label">Page 1 of 1</span><button id="next-page" type="button">Next</button></div></div>
@@ -254,17 +259,17 @@ copyLog.addEventListener('click',async()=>{
 });
 taskConfigs.addEventListener('change',async event=>{
  const control=event.target.closest('.config-control');if(!control)return;
- const imageSelect=document.getElementById('image-config-'+control.dataset.index),imageScore=document.getElementById('image-score-'+control.dataset.index),videoSelect=document.getElementById('video-config-'+control.dataset.index),videoScore=document.getElementById('video-score-'+control.dataset.index),videoCRF=document.getElementById('video-crf-'+control.dataset.index),useNvidia=document.getElementById('use-nvidia-'+control.dataset.index);
+ const imageSelect=document.getElementById('image-config-'+control.dataset.index),imageScore=document.getElementById('image-score-'+control.dataset.index),videoSelect=document.getElementById('video-config-'+control.dataset.index),videoScore=document.getElementById('video-score-'+control.dataset.index),videoCRF=document.getElementById('video-crf-'+control.dataset.index),useNvidia=document.getElementById('use-nvidia-'+control.dataset.index),dropAPAC=document.getElementById('drop-apac-'+control.dataset.index);
  applyingConfig=true;
- imageSelect.disabled=true;imageScore.disabled=true;videoSelect.disabled=true;videoScore.disabled=true;videoCRF.disabled=true;useNvidia.disabled=true;
+ imageSelect.disabled=true;imageScore.disabled=true;videoSelect.disabled=true;videoScore.disabled=true;videoCRF.disabled=true;useNvidia.disabled=true;dropAPAC.disabled=true;
  configStatus.textContent='Applying...';
  try{
-  const response=await fetch('/api/task-configs/'+encodeURIComponent(control.dataset.profile),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({image_config:imageSelect.value,image_score:Number(imageScore.value),video_config:videoSelect.value,video_score:Number(videoScore.value),video_crf:Number(videoCRF.value),use_nvidia:useNvidia.checked})});
+  const response=await fetch('/api/task-configs/'+encodeURIComponent(control.dataset.profile),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({image_config:imageSelect.value,image_score:Number(imageScore.value),video_config:videoSelect.value,video_score:Number(videoScore.value),video_crf:Number(videoCRF.value),use_nvidia:useNvidia.checked,drop_apac:dropAPAC.checked})});
   configStatus.textContent=response.ok?'Applied to future jobs':(await response.text()).trim();
  }catch(error){
   configStatus.textContent='Unable to apply: '+error.message;
  }finally{
-  applyingConfig=false;imageSelect.disabled=false;imageScore.disabled=false;videoSelect.disabled=false;videoScore.disabled=false;videoCRF.disabled=false;useNvidia.disabled=false;
+  applyingConfig=false;imageSelect.disabled=false;imageScore.disabled=false;videoSelect.disabled=false;videoScore.disabled=false;videoCRF.disabled=false;useNvidia.disabled=false;dropAPAC.disabled=false;
  }
  await refreshTaskConfigs();
 });
@@ -279,7 +284,7 @@ recent.addEventListener('click',async event=>{
 async function refreshTaskConfigs(){
  if(applyingConfig||(document.activeElement&&document.activeElement.classList.contains('config-control')))return;
  const profiles=await fetch('/api/task-configs').then(x=>x.json());
- taskConfigs.innerHTML=profiles.map((p,i)=>'<tr><td>'+esc(p.profile)+'</td><td><select class="config-select config-control" data-index="'+i+'" data-profile="'+esc(p.profile)+'" id="image-config-'+i+'">'+p.image_configs.map(c=>'<option value="'+esc(c.name)+'"'+(c.name===p.image_current?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select></td><td><input class="score-input config-control" data-index="'+i+'" data-profile="'+esc(p.profile)+'" id="image-score-'+i+'" type="number" min="0" max="100" step="1" value="'+p.image_score+'"></td><td><select class="config-select config-control" data-index="'+i+'" data-profile="'+esc(p.profile)+'" id="video-config-'+i+'">'+p.video_configs.map(c=>'<option value="'+esc(c.name)+'"'+(c.name===p.video_current?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select></td><td><input class="score-input config-control" data-index="'+i+'" data-profile="'+esc(p.profile)+'" id="video-score-'+i+'" type="number" min="0" max="100" step="1" value="'+p.video_score+'"></td><td><input class="score-input config-control" data-index="'+i+'" data-profile="'+esc(p.profile)+'" id="video-crf-'+i+'" type="number" min="0" max="63" step="1" value="'+p.video_crf+'"></td><td><label class="nvidia-option"><input class="config-control" data-index="'+i+'" data-profile="'+esc(p.profile)+'" id="use-nvidia-'+i+'" type="checkbox"'+(p.use_nvidia?' checked':'')+'> Use when supported</label></td></tr>').join('');
+ taskConfigs.innerHTML=profiles.map((p,i)=>'<tr><td>'+esc(p.profile)+'</td><td><select class="config-select config-control" data-index="'+i+'" data-profile="'+esc(p.profile)+'" id="image-config-'+i+'">'+p.image_configs.map(c=>'<option value="'+esc(c.name)+'"'+(c.name===p.image_current?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select></td><td><input class="score-input config-control" data-index="'+i+'" data-profile="'+esc(p.profile)+'" id="image-score-'+i+'" type="number" min="0" max="100" step="1" value="'+p.image_score+'"></td><td><select class="config-select config-control" data-index="'+i+'" data-profile="'+esc(p.profile)+'" id="video-config-'+i+'">'+p.video_configs.map(c=>'<option value="'+esc(c.name)+'"'+(c.name===p.video_current?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select></td><td><input class="score-input config-control" data-index="'+i+'" data-profile="'+esc(p.profile)+'" id="video-score-'+i+'" type="number" min="0" max="100" step="1" value="'+p.video_score+'"></td><td><input class="score-input config-control" data-index="'+i+'" data-profile="'+esc(p.profile)+'" id="video-crf-'+i+'" type="number" min="0" max="63" step="1" value="'+p.video_crf+'"></td><td><label class="nvidia-option"><input class="config-control" data-index="'+i+'" data-profile="'+esc(p.profile)+'" id="use-nvidia-'+i+'" type="checkbox"'+(p.use_nvidia?' checked':'')+'> Use when supported</label></td><td><label class="nvidia-option"><input class="config-control" data-index="'+i+'" data-profile="'+esc(p.profile)+'" id="drop-apac-'+i+'" type="checkbox"'+(p.drop_apac?' checked':'')+'> Drop APAC</label></td></tr>').join('');
 }
 async function refresh(){
  const [s,r,l]=await Promise.all([fetch('/api/stats').then(x=>x.json()),fetch('/api/recent?page='+currentPage).then(x=>x.json()),fetch('/api/logs').then(x=>x.json()),refreshTaskConfigs()]);

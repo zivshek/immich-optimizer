@@ -113,6 +113,7 @@ func (store *StatsStore) init() error {
 		CREATE TABLE IF NOT EXISTS profile_processing_options (
 			profile TEXT PRIMARY KEY,
 			use_nvidia INTEGER NOT NULL DEFAULT 0,
+			drop_apac INTEGER NOT NULL DEFAULT 0,
 			image_score INTEGER NOT NULL DEFAULT 85,
 			video_score INTEGER NOT NULL DEFAULT 95,
 			video_crf INTEGER NOT NULL DEFAULT 28,
@@ -135,6 +136,9 @@ func (store *StatsStore) init() error {
 		}
 	}
 	if err := store.ensureColumn("profile_processing_options", "image_score", "INTEGER NOT NULL DEFAULT 85"); err != nil {
+		return err
+	}
+	if err := store.ensureColumn("profile_processing_options", "drop_apac", "INTEGER NOT NULL DEFAULT 0"); err != nil {
 		return err
 	}
 	if err := store.ensureColumn("profile_processing_options", "video_score", "INTEGER NOT NULL DEFAULT 95"); err != nil {
@@ -166,6 +170,30 @@ func (store *StatsStore) ProfileNvidia(profile string) (bool, error) {
 	}
 	if err != nil {
 		return false, fmt.Errorf("query profile NVIDIA option: %w", err)
+	}
+	return enabled, nil
+}
+
+func (store *StatsStore) SetProfileDropAPAC(profile string, enabled bool) error {
+	_, err := store.db.Exec(`
+		INSERT INTO profile_processing_options (profile, drop_apac, updated_at)
+		VALUES (?, ?, ?)
+		ON CONFLICT(profile) DO UPDATE SET drop_apac = excluded.drop_apac, updated_at = excluded.updated_at
+	`, profile, enabled, time.Now().UTC())
+	if err != nil {
+		return fmt.Errorf("record profile APAC option: %w", err)
+	}
+	return nil
+}
+
+func (store *StatsStore) ProfileDropAPAC(profile string) (bool, error) {
+	var enabled bool
+	err := store.db.QueryRow(`SELECT drop_apac FROM profile_processing_options WHERE profile = ?`, profile).Scan(&enabled)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("query profile APAC option: %w", err)
 	}
 	return enabled, nil
 }

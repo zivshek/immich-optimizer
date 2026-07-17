@@ -252,6 +252,44 @@ func TestShouldUploadProcessedFileRequiresImageSavingsThreshold(t *testing.T) {
 	}
 }
 
+func TestCreateTaskProcessorSetsProcessingEnvironment(t *testing.T) {
+	source := filepath.Join(t.TempDir(), "video.mp4")
+	if err := os.WriteFile(source, []byte("video"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	configFile := filepath.Join(t.TempDir(), "tasks.yaml")
+	if err := os.WriteFile(configFile, []byte("tasks: []"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	watcher := &FileWatcher{logger: log.New(io.Discard, "", 0)}
+	processor, err := watcher.createTaskProcessor(source, configFile, true, true, 88, 94, 29)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer processor.Close()
+
+	for _, expected := range []string{
+		"IUO_USE_NVIDIA=1",
+		"IUO_DROP_APAC=1",
+		"IUO_IMAGE_SCORE=88",
+		"IUO_VIDEO_SCORE=94",
+		"IUO_VIDEO_CRF=29",
+	} {
+		if !containsString(processor.environment, expected) {
+			t.Fatalf("processor environment missing %q: %v", expected, processor.environment)
+		}
+	}
+}
+
+func containsString(values []string, expected string) bool {
+	for _, value := range values {
+		if value == expected {
+			return true
+		}
+	}
+	return false
+}
+
 func TestIsHiddenPath(t *testing.T) {
 	watchDir := t.TempDir()
 	watcher := &FileWatcher{watchDir: watchDir}

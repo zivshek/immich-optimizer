@@ -80,6 +80,9 @@ tasks:
 	if err := registry.SetNvidia("alice", true); err != nil {
 		t.Fatal(err)
 	}
+	if err := registry.SetDropAPAC("alice", true); err != nil {
+		t.Fatal(err)
+	}
 	if err := registry.SetImageScore("alice", 87); err != nil {
 		t.Fatal(err)
 	}
@@ -98,6 +101,9 @@ tasks:
 	}
 	if !profiles[0].UseNvidia {
 		t.Fatal("NVIDIA option was not applied")
+	}
+	if !profiles[0].DropAPAC {
+		t.Fatal("APAC option was not applied")
 	}
 	if profiles[0].ImageScore != 87 {
 		t.Fatalf("image score was not applied: %d", profiles[0].ImageScore)
@@ -118,6 +124,10 @@ tasks:
 	videoSelected, err := store.SelectedMediaTaskConfig("alice", mediaTypeVideo)
 	if err != nil || videoSelected != "standard/zeta" {
 		t.Fatalf("video selection was not persisted: %q, %v", videoSelected, err)
+	}
+	dropAPAC, err := store.ProfileDropAPAC("alice")
+	if err != nil || !dropAPAC {
+		t.Fatalf("APAC option was not persisted: %v, %v", dropAPAC, err)
 	}
 }
 
@@ -158,7 +168,7 @@ func TestStandardAv1UsesFixedCrfAndPerceptualAv1UsesShorterSamples(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{"codec_name", `"av1"`, "passing through without transcoding", "-c:v libsvtav1", "-preset 6", `crf="${IUO_VIDEO_CRF:-28}"`, `-crf "$crf"`, "-noautorotate"} {
+	for _, expected := range []string{"codec_name", "codec_tag_string", "IUO_DROP_APAC", "passing through original to preserve it", "dropping APAC", `"av1"`, "passing through without transcoding", "-map 0:a:0?", "-c:v libsvtav1", "-preset 6", `crf="${IUO_VIDEO_CRF:-28}"`, `-crf "$crf"`, "-noautorotate"} {
 		if !strings.Contains(string(standardScript), expected) {
 			t.Fatalf("standard AV1 script is missing %q", expected)
 		}
@@ -173,7 +183,7 @@ func TestStandardAv1UsesFixedCrfAndPerceptualAv1UsesShorterSamples(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{"codec_name", `"av1"`, "passing through without transcoding", "--min-samples 5", "--sample-every 2m", "--sample-duration 6s"} {
+	for _, expected := range []string{"codec_name", "codec_tag_string", "IUO_DROP_APAC", "passing through original to preserve it", "dropping APAC", `"av1"`, "passing through without transcoding", "-map 1:a:0?", "--min-samples 5", "--sample-every 2m", "--sample-duration 6s"} {
 		if !strings.Contains(string(perceptualScript), expected) {
 			t.Fatalf("perceptual AV1 script is missing %q", expected)
 		}
@@ -245,6 +255,42 @@ func TestPerceptualVideosUseDashboardVmafTarget(t *testing.T) {
 	}
 }
 
+func TestVideoScriptsPreserveAPACUnlessExplicitlyDropped(t *testing.T) {
+	err := filepath.Walk("config", func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		name := filepath.Base(path)
+		if info.IsDir() || filepath.Ext(path) != ".sh" ||
+			(name != "transcode-video.sh" && !strings.HasPrefix(name, "transcode-video-")) {
+			return nil
+		}
+		contents, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		script := string(contents)
+		if strings.Contains(script, "exec sh ./transcode-video-") {
+			return nil
+		}
+		for _, expected := range []string{
+			"codec_tag_string",
+			"IUO_DROP_APAC",
+			"passing through original to preserve it",
+			"dropping APAC and keeping primary audio only",
+			":0?",
+		} {
+			if !strings.Contains(script, expected) {
+				t.Errorf("%s is missing %q", path, expected)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestMetadataCopyScriptsExtractEmbeddedTags(t *testing.T) {
 	err := filepath.Walk("config", func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -261,6 +307,33 @@ func TestMetadataCopyScriptsExtractEmbeddedTags(t *testing.T) {
 		if strings.Contains(strings.ToLower(script), "tagsfromfile") &&
 			!strings.Contains(script, "ExtractEmbedded=1") {
 			t.Errorf("%s copies metadata without ExtractEmbedded=1", path)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestConfigShellScriptsAvoidBomAndAllAudioMapping(t *testing.T) {
+	err := filepath.Walk("config", func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() || filepath.Ext(path) != ".sh" {
+			return nil
+		}
+		contents, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if len(contents) >= 3 && contents[0] == 0xef && contents[1] == 0xbb && contents[2] == 0xbf {
+			t.Errorf("%s has a UTF-8 BOM before the shebang", path)
+		}
+		script := string(contents)
+		if strings.Contains(filepath.Base(path), "video") &&
+			(strings.Contains(script, "-map 0:a?") || strings.Contains(script, "-map 1:a?")) {
+			t.Errorf("%s maps every audio stream; use a:0? to avoid unsupported iPhone sidecar audio", path)
 		}
 		return nil
 	})

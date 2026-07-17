@@ -34,6 +34,7 @@ type ProfileTaskConfigs struct {
 	ImageConfigs []TaskConfigOption `json:"image_configs"`
 	VideoConfigs []TaskConfigOption `json:"video_configs"`
 	UseNvidia    bool               `json:"use_nvidia"`
+	DropAPAC     bool               `json:"drop_apac"`
 	ImageScore   int                `json:"image_score"`
 	VideoScore   int                `json:"video_score"`
 	VideoCRF     int                `json:"video_crf"`
@@ -116,6 +117,11 @@ func (registry *TaskConfigRegistry) Register(watcher *FileWatcher) error {
 		useNvidia = true
 	}
 	watcher.setNvidiaEnabled(useNvidia)
+	dropAPAC, err := registry.store.ProfileDropAPAC(watcher.profile.Name)
+	if err != nil {
+		return err
+	}
+	watcher.setDropAPACEnabled(dropAPAC)
 	imageScore, err := registry.store.ProfileImageScore(watcher.profile.Name)
 	if err != nil {
 		return err
@@ -176,6 +182,7 @@ func (registry *TaskConfigRegistry) List() ([]ProfileTaskConfigs, error) {
 			ImageConfigs: append([]TaskConfigOption(nil), imageConfigs...),
 			VideoConfigs: append([]TaskConfigOption(nil), videoConfigs...),
 			UseNvidia:    watcher.nvidiaEnabled(),
+			DropAPAC:     watcher.dropAPACEnabled(),
 			ImageScore:   watcher.currentImageScore(),
 			VideoScore:   watcher.currentVideoScore(),
 			VideoCRF:     watcher.currentVideoCRF(),
@@ -196,6 +203,20 @@ func (registry *TaskConfigRegistry) SetNvidia(profileName string, enabled bool) 
 		return err
 	}
 	watcher.setNvidiaEnabled(enabled)
+	return nil
+}
+
+func (registry *TaskConfigRegistry) SetDropAPAC(profileName string, enabled bool) error {
+	registry.mu.RLock()
+	watcher := registry.watchers[profileName]
+	registry.mu.RUnlock()
+	if watcher == nil {
+		return fmt.Errorf("profile %q not found", profileName)
+	}
+	if err := registry.store.SetProfileDropAPAC(profileName, enabled); err != nil {
+		return err
+	}
+	watcher.setDropAPACEnabled(enabled)
 	return nil
 }
 
