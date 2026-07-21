@@ -278,9 +278,14 @@ func (writer *commandOutputWriter) String() string {
 }
 
 func (writer *commandOutputWriter) logLine(line string) {
-	if writer.logger != nil && strings.TrimSpace(line) != "" {
+	trimmed := strings.TrimSpace(line)
+	if writer.logger != nil && trimmed != "" && !isFFmpegProgressLine(trimmed) {
 		writer.logger.Printf("%s", line)
 	}
+}
+
+func isFFmpegProgressLine(line string) bool {
+	return strings.HasPrefix(line, "frame=") && strings.Contains(line, " fps=") && strings.Contains(line, " bitrate=")
 }
 
 func (tp *TaskProcessor) processResults() error {
