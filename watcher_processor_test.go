@@ -10,9 +10,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestProcessFileDeletesOriginalOnlyAfterSuccessfulUpload(t *testing.T) {
+	withFastFileReadiness(t)
+
 	for _, test := range []struct {
 		name       string
 		statusCode int
@@ -89,6 +92,8 @@ func TestProcessFileDeletesOriginalOnlyAfterSuccessfulUpload(t *testing.T) {
 }
 
 func TestProcessFileUploadsOriginalAfterOptimizationFailure(t *testing.T) {
+	withFastFileReadiness(t)
+
 	for _, test := range []struct {
 		name        string
 		statusCode  int
@@ -330,6 +335,8 @@ func TestIsHiddenPath(t *testing.T) {
 }
 
 func TestProcessFileIgnoresHiddenFile(t *testing.T) {
+	withFastFileReadiness(t)
+
 	requests := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests++
@@ -358,6 +365,40 @@ func TestProcessFileIgnoresHiddenFile(t *testing.T) {
 	}
 	if _, err := os.Stat(filePath); err != nil {
 		t.Fatalf("hidden file should remain untouched: %v", err)
+	}
+}
+
+func TestProcessFileDoesNotUploadEmptyFile(t *testing.T) {
+	withFastFileReadiness(t)
+
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		w.WriteHeader(http.StatusCreated)
+	}))
+	defer server.Close()
+
+	watchDir := t.TempDir()
+	filePath := filepath.Join(watchDir, "video.mp4")
+	if err := os.WriteFile(filePath, nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	var logs bytes.Buffer
+	watcher := &FileWatcher{
+		watchDir:     watchDir,
+		immichClient: NewImmichClient(server.URL, "profile-api-key", 5, newCustomLogger(log.New(io.Discard, "", 0), "")),
+		config:       &Config{},
+		logger:       log.New(&logs, "", 0),
+	}
+
+	watcher.processFile(filePath)
+
+	if requests != 0 {
+		t.Fatalf("empty file triggered %d upload requests", requests)
+	}
+	if !strings.Contains(logs.String(), "did not become non-empty") {
+		t.Fatalf("expected empty file readiness log, got %q", logs.String())
 	}
 }
 
@@ -396,4 +437,19 @@ func TestParseMediaResolutionUsesDisplayedDimensions(t *testing.T) {
 			}
 		})
 	}
+}
+
+func withFastFileReadiness(t *testing.T) {
+	t.Helper()
+	originalPoll := fileReadyPollInterval
+	originalStable := fileReadyStableDuration
+	originalTimeout := fileReadyTimeout
+	fileReadyPollInterval = time.Millisecond
+	fileReadyStableDuration = 0
+	fileReadyTimeout = 5 * time.Millisecond
+	t.Cleanup(func() {
+		fileReadyPollInterval = originalPoll
+		fileReadyStableDuration = originalStable
+		fileReadyTimeout = originalTimeout
+	})
 }

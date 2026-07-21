@@ -8,9 +8,16 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 const imageMinimumReductionPercent = 15
+
+var (
+	fileReadyPollInterval   = 500 * time.Millisecond
+	fileReadyStableDuration = 2 * time.Second
+	fileReadyTimeout        = 2 * time.Minute
+)
 
 // isTempFile checks if a file is a known temporary file format used by sync clients
 func (fw *FileWatcher) isTempFile(filePath string) bool {
@@ -55,6 +62,10 @@ func (fw *FileWatcher) processFile(originalFilePath string) {
 	if fw.semaphore != nil {
 		fw.semaphore <- struct{}{}
 		defer func() { <-fw.semaphore }()
+	}
+
+	if !fw.waitForReadyFile(originalFilePath) {
+		return
 	}
 
 	if !fw.validateFile(originalFilePath) {
@@ -107,6 +118,71 @@ func (fw *FileWatcher) validateFile(filePath string) bool {
 		return false
 	}
 	return !info.IsDir()
+}
+
+func (fw *FileWatcher) waitForReadyFile(filePath string) bool {
+	deadline := time.Now().Add(fileReadyTimeout)
+	var lastSize int64 = -1
+	var lastMod time.Time
+	var stableSince time.Time
+	var lastProbeErr error
+
+	for {
+		now := time.Now()
+		info, err := os.Stat(filePath)
+		if err != nil {
+			fw.logger.Printf("Error getting file info for %s: %v", filePath, err)
+			return false
+		}
+		if info.IsDir() {
+			return false
+		}
+
+		size := info.Size()
+		modTime := info.ModTime()
+		if size > 0 && size == lastSize && modTime.Equal(lastMod) {
+			if stableSince.IsZero() {
+				stableSince = now
+			}
+			if fileReadyStableDuration <= 0 || now.Sub(stableSince) >= fileReadyStableDuration {
+				if err := validateReadyMedia(filePath); err == nil {
+					return true
+				} else {
+					lastProbeErr = err
+				}
+			}
+		} else {
+			lastSize = size
+			lastMod = modTime
+			stableSince = now
+		}
+
+		if !deadline.After(now) {
+			if size <= 0 {
+				fw.logger.Printf("Skipping file %s because it did not become non-empty before timeout", filePath)
+			} else if lastProbeErr != nil {
+				fw.logger.Printf("Skipping file %s because it did not become readable before timeout: %v", filePath, lastProbeErr)
+			} else {
+				fw.logger.Printf("Skipping file %s because it did not become stable before timeout", filePath)
+			}
+			return false
+		}
+		time.Sleep(fileReadyPollInterval)
+	}
+}
+
+func validateReadyMedia(filePath string) error {
+	if mediaTypeForExtension(filepath.Ext(filePath)) != mediaTypeVideo {
+		return nil
+	}
+	return exec.Command(
+		"ffprobe",
+		"-v", "error",
+		"-select_streams", "v:0",
+		"-show_entries", "stream=codec_name",
+		"-of", "default=noprint_wrappers=1:nokey=1",
+		filePath,
+	).Run()
 }
 
 // shouldOptimizeFile determines if a file should be processed for optimization
