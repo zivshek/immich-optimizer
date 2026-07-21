@@ -255,8 +255,8 @@ func (registry *TaskConfigRegistry) SetVideoScore(profileName string, score int)
 }
 
 func (registry *TaskConfigRegistry) SetVideoCRF(profileName string, crf int) error {
-	if crf < 0 || crf > 63 {
-		return fmt.Errorf("video CRF must be between 0 and 63")
+	if crf < 1 || crf > 63 {
+		return fmt.Errorf("video CRF must be between 1 and 63")
 	}
 	registry.mu.RLock()
 	watcher := registry.watchers[profileName]

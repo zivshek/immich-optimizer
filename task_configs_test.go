@@ -117,6 +117,9 @@ tasks:
 	if err := registry.SetVideoCRF("alice", 64); err == nil {
 		t.Fatal("video CRF above 63 was accepted")
 	}
+	if err := registry.SetVideoCRF("alice", 0); err == nil {
+		t.Fatal("video CRF 0 was accepted")
+	}
 	imageSelected, err := store.SelectedMediaTaskConfig("alice", mediaTypeImage)
 	if err != nil || imageSelected != "custom/my-profile" {
 		t.Fatalf("image selection was not persisted: %q, %v", imageSelected, err)
@@ -168,7 +171,7 @@ func TestStandardAv1UsesFixedCrfAndPerceptualAv1UsesShorterSamples(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{"codec_name", "codec_tag_string", "IUO_DROP_APAC", "passing through original to preserve it", "dropping APAC", `"av1"`, "passing through without transcoding", "-map 0:a:0?", "-c:v libsvtav1", "-preset 6", `crf="${IUO_VIDEO_CRF:-28}"`, `-crf "$crf"`, "-noautorotate"} {
+	for _, expected := range []string{"codec_name", "codec_tag_string", "pix_fmt", "yuv420p10le", "IUO_DROP_APAC", "passing through original to preserve it", "dropping APAC", `"av1"`, "passing through without transcoding", "encoding AV1 with CRF", `-pix_fmt "$output_pix_fmt"`, "-map 0:a:0?", "-c:v libsvtav1", "-preset 6", `crf="${IUO_VIDEO_CRF:-28}"`, `-crf "$crf"`, "-noautorotate"} {
 		if !strings.Contains(string(standardScript), expected) {
 			t.Fatalf("standard AV1 script is missing %q", expected)
 		}

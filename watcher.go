@@ -183,7 +183,7 @@ func (fw *FileWatcher) setVideoScore(score int) {
 func (fw *FileWatcher) currentVideoCRF() int {
 	fw.configMu.RLock()
 	defer fw.configMu.RUnlock()
-	if fw.videoCRF < 0 {
+	if fw.videoCRF <= 0 {
 		return 28
 	}
 	return fw.videoCRF

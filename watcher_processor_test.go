@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -249,6 +250,23 @@ func TestShouldUploadProcessedFileRequiresImageSavingsThreshold(t *testing.T) {
 				t.Fatalf("shouldUploadProcessedFile() = %v, want %v", got, test.want)
 			}
 		})
+	}
+}
+
+func TestShouldUploadProcessedFileLogsWhenOutputIsNotSmaller(t *testing.T) {
+	var logs bytes.Buffer
+	watcher := &FileWatcher{logger: log.New(&logs, "", 0)}
+	processor := &TaskProcessor{
+		OriginalExtension: ".mp4",
+		OriginalSize:      1000,
+		ProcessedFile:     os.Stdin,
+		ProcessedSize:     1200,
+	}
+	if watcher.shouldUploadProcessedFile(processor) {
+		t.Fatal("larger video output should not be uploaded")
+	}
+	if !strings.Contains(logs.String(), "Optimized output was not smaller") {
+		t.Fatalf("expected not-smaller log, got %q", logs.String())
 	}
 }
 

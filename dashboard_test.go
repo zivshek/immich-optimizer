@@ -95,6 +95,13 @@ tasks:
 	if watcher.currentVideoCRF() != 30 {
 		t.Fatalf("video CRF was not applied: %d", watcher.currentVideoCRF())
 	}
+	invalidCRFRequest := httptest.NewRequest(http.MethodPut, "/api/task-configs/alice", strings.NewReader(`{"image_config":"standard/lossless","image_score":87,"video_config":"standard/lossless","video_score":93,"video_crf":0,"use_nvidia":true,"drop_apac":true}`))
+	invalidCRFRequest.SetPathValue("profile", "alice")
+	invalidCRFResponse := httptest.NewRecorder()
+	dashboard.handleSelectTaskConfig(invalidCRFResponse, invalidCRFRequest)
+	if invalidCRFResponse.Code != http.StatusBadRequest {
+		t.Fatalf("CRF 0 should be rejected: %d %s", invalidCRFResponse.Code, invalidCRFResponse.Body.String())
+	}
 
 	recentRequest := httptest.NewRequest(http.MethodGet, "/api/recent?page=1", nil)
 	recentResponse := httptest.NewRecorder()
@@ -121,7 +128,7 @@ tasks:
 	indexRequest := httptest.NewRequest(http.MethodGet, "/", nil)
 	indexResponse := httptest.NewRecorder()
 	dashboard.handleIndex(indexResponse, indexRequest)
-	for _, expected := range []string{`id="copy-log"`, "navigator.clipboard.writeText", `class="dashboard-section"`, "Media Configurations", "Image Config", "Image Score", "Video Config", "Video Score", "Use when supported", "APAC Audio", "Drop APAC", "drop_apac", "taskConfigs.addEventListener('change'", "config-control"} {
+	for _, expected := range []string{`id="copy-log"`, "navigator.clipboard.writeText", `class="dashboard-section"`, "Media Configurations", "Image Config", "Image Score", "Video Config", "Video Score", "Use when supported", "APAC Audio", "Drop APAC", "drop_apac", "numberValue", `min="1" max="63"`, "taskConfigs.addEventListener('change'", "config-control"} {
 		if !strings.Contains(indexResponse.Body.String(), expected) {
 			t.Fatalf("dashboard HTML is missing %q", expected)
 		}

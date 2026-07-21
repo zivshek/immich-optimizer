@@ -26,6 +26,17 @@ if [ "$video_codec" = "av1" ] && [ "$has_apac" != "1" ]; then
   exit 0
 fi
 
+input_pix_fmt=$(ffprobe -v error -select_streams v:0 \
+  -show_entries stream=pix_fmt \
+  -of default=noprint_wrappers=1:nokey=1 "$src")
+output_pix_fmt=yuv420p
+case "$input_pix_fmt" in
+  *10le|*12le)
+    output_pix_fmt=yuv420p10le
+    ;;
+esac
+
+echo "encoding AV1 with CRF ${crf} and pixel format ${output_pix_fmt}"
 ffmpeg -hide_banner -y \
   -noautorotate \
   -i "$src" \
@@ -36,7 +47,7 @@ ffmpeg -hide_banner -y \
   -c:v libsvtav1 \
   -preset 6 \
   -crf "$crf" \
-  -pix_fmt yuv420p \
+  -pix_fmt "$output_pix_fmt" \
   -c:a copy \
   -tag:v av01 \
   -movflags +faststart+use_metadata_tags \

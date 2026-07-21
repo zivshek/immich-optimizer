@@ -171,6 +171,13 @@ func (fw *FileWatcher) handleProcessingSuccess(originalFilePath string, tp *Task
 // shouldUploadProcessedFile determines if the processed file should be uploaded instead of original
 func (fw *FileWatcher) shouldUploadProcessedFile(tp *TaskProcessor) bool {
 	if tp.ProcessedFile == nil || tp.ProcessedSize <= 0 || tp.OriginalSize <= tp.ProcessedSize {
+		if tp.ProcessedFile != nil && tp.ProcessedSize > 0 {
+			fw.logger.Printf(
+				"Optimized output was not smaller (%s -> %s); uploading original file instead",
+				humanReadableSize(tp.OriginalSize),
+				humanReadableSize(tp.ProcessedSize),
+			)
+		}
 		return false
 	}
 	if mediaTypeForExtension(tp.OriginalExtension) != mediaTypeImage {
