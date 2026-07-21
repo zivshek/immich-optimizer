@@ -171,7 +171,7 @@ func TestStandardAv1UsesFixedCrfAndPerceptualAv1UsesShorterSamples(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{"codec_name", "codec_tag_string", "pix_fmt", "yuv420p10le", "IUO_DROP_APAC", "passing through original to preserve it", "dropping APAC", `"av1"`, "passing through without transcoding", "encoding AV1 with CRF", `-pix_fmt "$output_pix_fmt"`, "-map 0:a:0?", "-c:v libsvtav1", "-preset 6", `crf="${IUO_VIDEO_CRF:-28}"`, `-crf "$crf"`, "-noautorotate"} {
+	for _, expected := range []string{"codec_name", "codec_tag_string", "color_transfer", "arib-std-b67", "smpte2084", "tonemap=tonemap=hable", "bt709", "HDR", "8-bit SDR", "IUO_DROP_APAC", "passing through original to preserve it", "dropping APAC", `"av1"`, "passing through without transcoding", "encoding AV1 with CRF", `-pix_fmt "$output_pix_fmt"`, "-map 0:a:0?", "-c:v libsvtav1", "-preset 6", `crf="${IUO_VIDEO_CRF:-28}"`, `-crf "$crf"`, "-noautorotate"} {
 		if !strings.Contains(string(standardScript), expected) {
 			t.Fatalf("standard AV1 script is missing %q", expected)
 		}

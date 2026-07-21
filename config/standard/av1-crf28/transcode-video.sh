@@ -26,17 +26,24 @@ if [ "$video_codec" = "av1" ] && [ "$has_apac" != "1" ]; then
   exit 0
 fi
 
-input_pix_fmt=$(ffprobe -v error -select_streams v:0 \
-  -show_entries stream=pix_fmt \
+color_transfer=$(ffprobe -v error -select_streams v:0 \
+  -show_entries stream=color_transfer \
   -of default=noprint_wrappers=1:nokey=1 "$src")
 output_pix_fmt=yuv420p
-case "$input_pix_fmt" in
-  *10le|*12le)
-    output_pix_fmt=yuv420p10le
+video_filter=
+color_args=
+case "$color_transfer" in
+  arib-std-b67|smpte2084)
+    video_filter='-vf zscale=t=linear:npl=100,format=gbrpf32le,tonemap=tonemap=hable:desat=0,zscale=t=bt709:p=bt709:m=bt709:r=tv,format=yuv420p'
+    color_args='-color_primaries bt709 -color_trc bt709 -colorspace bt709'
     ;;
 esac
 
-echo "encoding AV1 with CRF ${crf} and pixel format ${output_pix_fmt}"
+if [ -n "$video_filter" ]; then
+  echo "encoding AV1 with CRF ${crf}; tonemapping HDR (${color_transfer}) to 8-bit SDR"
+else
+  echo "encoding AV1 with CRF ${crf} and pixel format ${output_pix_fmt}"
+fi
 ffmpeg -hide_banner -y \
   -noautorotate \
   -i "$src" \
@@ -44,10 +51,12 @@ ffmpeg -hide_banner -y \
   -map 0:a:0? \
   -map_metadata 0 \
   -map_chapters 0 \
+  $video_filter \
   -c:v libsvtav1 \
   -preset 6 \
   -crf "$crf" \
   -pix_fmt "$output_pix_fmt" \
+  $color_args \
   -c:a copy \
   -tag:v av01 \
   -movflags +faststart+use_metadata_tags \
