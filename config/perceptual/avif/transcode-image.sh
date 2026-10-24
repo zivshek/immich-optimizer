@@ -3,6 +3,21 @@ set -eu
 
 src=$1
 dst=$2
+# ImageMagick/fssimu2 do not preserve or assess auxiliary HDR gain maps.
+# Keep HEIF containers and any detected HDR/high-depth input unchanged rather
+# than flattening it to an SDR AVIF. Failing the task uploads the original.
+metadata=$(exiftool -j -G1 -s -api ExtractEmbedded=1 "$src")
+# Validate the probe independently: a jq error must not be treated as SDR.
+printf '%s' "$metadata" | jq -e 'length == 1 and (.[0] | has("ExifTool:Error") | not)' >/dev/null
+if printf '%s' "$metadata" | jq -e '.[0] | to_entries | any(
+  (.key | test("GainMap|HDR|AuxiliaryImage|MPImage|JUMBF"; "i")) or
+  (.key | test("FileType$")) and (.value | tostring | test("HEIC|HEIF|HIF"; "i")) or
+  (.key | test("BitDepth$|BitsPerSample$")) and (.value | tostring | test("^(10|12|16|32|64)( |$)")) or
+  (.key | test("TransferCharacteristics$|TransferFunction$")) and (.value | tostring | test("PQ|HLG|2084|B67|^(16|18)$"; "i"))
+)' >/dev/null; then
+  echo "HDR, gain-map, HEIF or high-depth photo: retaining original to preserve HDR" >&2
+  exit 1
+fi
 workdir=$(dirname "$dst")
 candidate="${workdir}/candidate.avif"
 target_score="${IUO_IMAGE_SCORE:-85}"

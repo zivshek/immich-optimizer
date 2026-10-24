@@ -171,10 +171,13 @@ func TestStandardAv1UsesFixedCrfAndPerceptualAv1UsesShorterSamples(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{"codec_name", "codec_tag_string", "color_transfer", "arib-std-b67", "smpte2084", "tonemap=tonemap=hable", "bt709", "HDR", "8-bit SDR", "IUO_DROP_APAC", "passing through original to preserve it", "dropping APAC", `"av1"`, "passing through without transcoding", "encoding AV1 with CRF", `-pix_fmt "$output_pix_fmt"`, "-map 0:a:0?", "-c:v libsvtav1", "-preset 6", `crf="${IUO_VIDEO_CRF:-28}"`, `-crf "$crf"`, "-noautorotate"} {
+	for _, expected := range []string{"codec_name", "codec_tag_string", "color_transfer", "arib-std-b67", "smpte2084", "yuv420p10le", "HDR", "hdr_signature", "dynamic HDR", "IUO_DROP_APAC", "passing through original to preserve it", "dropping APAC", `"av1"`, "passing through without transcoding", "encoding AV1 with CRF", `-pix_fmt "$output_pix_fmt"`, "-map 0:a:0?", "-c:v libsvtav1", "-preset 6", `crf="${IUO_VIDEO_CRF:-28}"`, `-crf "$crf"`, "-noautorotate"} {
 		if !strings.Contains(string(standardScript), expected) {
 			t.Fatalf("standard AV1 script is missing %q", expected)
 		}
+	}
+	if strings.Contains(string(standardScript), "tonemap=") {
+		t.Fatal("standard AV1 must preserve HDR without tone mapping")
 	}
 	if strings.Contains(string(standardScript), "auto-encode") {
 		t.Fatal("standard AV1 script must not use perceptual auto-encode")
@@ -204,6 +207,9 @@ func TestPerceptualImagesUseDashboardSsimulacra2Target(t *testing.T) {
 		"fssimu2",
 		"AVIF quality",
 		"selected AVIF quality",
+		"GainMap|HDR",
+		"HEIC|HEIF|HIF",
+		"retaining original to preserve HDR",
 	} {
 		if !strings.Contains(string(avifScript), expected) {
 			t.Fatalf("perceptual AVIF script is missing %q", expected)
