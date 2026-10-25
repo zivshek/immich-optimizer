@@ -101,3 +101,13 @@ for TEST_CASE in hdr missing broken rewrite scorefail heif sdr; do
   esac
   echo "PASS: $TEST_CASE"
 done
+
+# A crashed native tool must keep its status and identify the exact build step.
+export TEST_CASE=scorefail
+status=0
+sh "$repo/scripts/smoke-test-perceptual.sh" > "$testdir/smoke-output" 2>&1 || status=$?
+[ "$status" = 132 ]
+grep -q '\[smoke\] FAIL metric-version exit=132' "$testdir/smoke-output"
+grep -q 'SIGILL' "$testdir/smoke-output"
+! grep -q 'START avif-version' "$testdir/smoke-output"
+echo 'PASS: smoke-native-crash-diagnostics'

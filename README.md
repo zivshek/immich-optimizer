@@ -322,6 +322,12 @@ that fail validation fall back to uploading the original. HDR probing scans
 video frame metadata and adds processing time. Existing AV1 passthrough and
 APAC preservation remain in effect.
 
+The perceptual image builds `fssimu2` with a baseline CPU target and Zig
+`ReleaseSafe` checks so cached build artifacts do not require the builder's CPU
+features and internal traps retain diagnostics. Named `[smoke]` build checks
+report the failing command and its exit code; `132` indicates SIGILL and can
+mean incompatible CPU instructions or an internal tool trap.
+
 Processing diagnostics for `perceptual/avif` and `standard/av1-crf28` include
 `[avif]`/`[av1]` stage markers and explicit failure stages. Image logs list the
 metadata tag names that triggered HDR handling, gain-map validation results,

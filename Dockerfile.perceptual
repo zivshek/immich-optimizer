@@ -232,13 +232,15 @@ RUN set -eux; \
 
 FROM image-metrics-builder AS fssimu2-builder
 
+# Avoid cached host-specific CPU instructions; retain runtime trap diagnostics.
+
 RUN set -eux; \
     git clone --depth 1 --branch "${FSSIMU2_VERSION}" https://github.com/gianni-rosato/fssimu2.git /build/fssimu2-cli; \
     cd /build/fssimu2-cli; \
     sed -i '/bin.linkSystemLibrary("avif");/a\    bin.root_module.linkSystemLibrary("heif", .{ .preferred_link_mode = .static });\n    bin.root_module.linkSystemLibrary("aom", .{ .preferred_link_mode = .static });' build.zig; \
     grep 'linkSystemLibrary("heif"' build.zig; \
     grep 'linkSystemLibrary("aom"' build.zig; \
-    zig build --release=fast --search-prefix ${INSTALL_PREFIX}; \
+    zig build -Doptimize=ReleaseSafe -Dcpu=baseline --search-prefix ${INSTALL_PREFIX}; \
     install -m 755 zig-out/bin/fssimu2 /usr/local/bin/fssimu2; \
     /usr/local/bin/fssimu2 --version
 
@@ -282,31 +284,8 @@ COPY --from=fssimu2-builder /usr/local/bin/fssimu2 /usr/local/bin/fssimu2
 COPY --from=image-metrics-builder /tmp/hdr-smoke.jpg /tmp/hdr-smoke.jpg
 ENV PATH="/build/bin:${PATH}"
 ENV LD_LIBRARY_PATH=/build/lib:/opt/ab-av1/lib
-RUN avifenc -q 80 --qgain-map 100 /tmp/hdr-smoke.jpg /tmp/hdr-smoke.avif && \
-    exiftool -overwrite_original -m -api ExtractEmbedded=1 \
-      -tagsFromFile /tmp/hdr-smoke.jpg -all:all /tmp/hdr-smoke.avif && \
-    avifdec --info /tmp/hdr-smoke.avif > /tmp/hdr-smoke.info && \
-    grep -E 'Gain map[[:space:]]*:[[:space:]]*[1-9][0-9]*x[1-9][0-9]* pixels' /tmp/hdr-smoke.info && \
-    magick '/tmp/hdr-smoke.jpg[0]' /tmp/hdr-source.png && \
-    avifdec /tmp/hdr-smoke.avif /tmp/hdr-candidate.png && \
-    fssimu2 /tmp/hdr-source.png /tmp/hdr-candidate.png && \
-    rm /tmp/hdr-source.png /tmp/hdr-candidate.png && \
-    rm /tmp/hdr-smoke.jpg /tmp/hdr-smoke.avif /tmp/hdr-smoke.info && \
-    fssimu2 --version && \
-    magick -size 64x64 gradient: /tmp/avif-smoke.png && \
-    magick /tmp/avif-smoke.png -quality 80 /tmp/avif-smoke.avif && \
-    fssimu2 /tmp/avif-smoke.png /tmp/avif-smoke.avif && \
-    magick -size 64x64 gradient: /tmp/jxl-smoke.png && \
-    cjxl --lossless_jpeg=0 -q 80 --effort=1 /tmp/jxl-smoke.png /tmp/jxl-smoke.jxl && \
-    djxl /tmp/jxl-smoke.jxl /tmp/jxl-smoke-decoded.png && \
-    fssimu2 /tmp/jxl-smoke.png /tmp/jxl-smoke-decoded.png && \
-    rm /tmp/avif-smoke.png /tmp/avif-smoke.avif && \
-    rm /tmp/jxl-smoke.png /tmp/jxl-smoke.jxl /tmp/jxl-smoke-decoded.png && \
-    ab-av1 --version && \
-    /opt/ab-av1/bin/ffmpeg -hide_banner -filters | grep libvmaf && \
-    /opt/ab-av1/bin/ffmpeg -hide_banner -encoders | grep libsvtav1 && \
-    /opt/ab-av1/bin/ffmpeg -hide_banner -encoders | grep libx265 && \
-    /opt/ab-av1/bin/ffmpeg -hide_banner -encoders | grep hevc_nvenc
+COPY scripts/smoke-test-perceptual.sh /tmp/smoke-test-perceptual.sh
+RUN sh /tmp/smoke-test-perceptual.sh && rm /tmp/smoke-test-perceptual.sh
 COPY --chown=appuser:appuser config/standard/lossless /etc/immich-optimizer/config
 COPY --chown=appuser:appuser config/standard /etc/immich-optimizer/bundled-configs/standard
 COPY --chown=appuser:appuser config/perceptual /etc/immich-optimizer/bundled-configs/perceptual
