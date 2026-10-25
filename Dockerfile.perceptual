@@ -219,9 +219,16 @@ RUN set -eux; \
       -DAVIF_CODEC_RAV1E=OFF \
       -DAVIF_CODEC_SVT=OFF \
       -DAVIF_LIBYUV=LOCAL \
+      -DAVIF_LIBXML2=LOCAL \
       -DAVIF_BUILD_APPS=ON; \
     cmake --build avif -j"$(nproc)"; \
-    cmake --install avif
+    cmake --install avif; \
+    ${INSTALL_PREFIX}/bin/avifenc -q 80 --qgain-map 100 \
+      "libavif-${LIBAVIF_VERSION}/tests/data/paris_exif_xmp_gainmap_bigendian.jpg" /tmp/hdr-smoke.avif; \
+    ${INSTALL_PREFIX}/bin/avifdec --info /tmp/hdr-smoke.avif > /tmp/hdr-smoke.info; \
+    grep -E 'Gain map[[:space:]]*:[[:space:]]*[1-9][0-9]*x[1-9][0-9]* pixels' /tmp/hdr-smoke.info; \
+    cp "libavif-${LIBAVIF_VERSION}/tests/data/paris_exif_xmp_gainmap_bigendian.jpg" /tmp/hdr-smoke.jpg; \
+    rm /tmp/hdr-smoke.avif /tmp/hdr-smoke.info
 
 FROM image-metrics-builder AS fssimu2-builder
 
@@ -272,8 +279,16 @@ COPY --from=ab-av1-builder /out/bin/ab-av1 /usr/local/bin/ab-av1
 COPY --from=ab-ffmpeg-builder /opt/ab-av1 /opt/ab-av1
 COPY --from=image-metrics-builder /build/install/ /build
 COPY --from=fssimu2-builder /usr/local/bin/fssimu2 /usr/local/bin/fssimu2
+COPY --from=image-metrics-builder /tmp/hdr-smoke.jpg /tmp/hdr-smoke.jpg
+ENV PATH="/build/bin:${PATH}"
 ENV LD_LIBRARY_PATH=/build/lib:/opt/ab-av1/lib
-RUN fssimu2 --version && \
+RUN avifenc -q 80 --qgain-map 100 /tmp/hdr-smoke.jpg /tmp/hdr-smoke.avif && \
+    exiftool -overwrite_original -m -api ExtractEmbedded=1 \
+      -tagsFromFile /tmp/hdr-smoke.jpg -all:all /tmp/hdr-smoke.avif && \
+    avifdec --info /tmp/hdr-smoke.avif > /tmp/hdr-smoke.info && \
+    grep -E 'Gain map[[:space:]]*:[[:space:]]*[1-9][0-9]*x[1-9][0-9]* pixels' /tmp/hdr-smoke.info && \
+    rm /tmp/hdr-smoke.jpg /tmp/hdr-smoke.avif /tmp/hdr-smoke.info && \
+    fssimu2 --version && \
     magick -size 64x64 gradient: /tmp/avif-smoke.png && \
     magick /tmp/avif-smoke.png -quality 80 /tmp/avif-smoke.avif && \
     fssimu2 /tmp/avif-smoke.png /tmp/avif-smoke.avif && \

@@ -305,9 +305,16 @@ videos. It preserves source frame orientation, copies audio and chapters, and
 restores and validates embedded metadata.
 
 HDR preservation in these two profiles is conservative. `perceptual/avif`
-keeps detected HDR/gain-map photos, HEIC/HEIF, and high-depth images in their
-original format; SDR photos still use perceptual AVIF compression. It does
-not convert Ultra HDR gain maps into AVIF gain maps. `standard/av1-crf28`
+converts supported Ultra HDR JPEGs to AVIF using libavif's native gain-map
+conversion. The gain map is encoded losslessly; the selected SSIMULACRA2 score
+measures the SDR base image, not reconstructed HDR quality. The output gain map
+is decoded and checked before and after metadata restoration. Unsupported JPEG
+gain maps fall back to the original. HEIC/HEIF and other detected HDR/high-depth
+sources retain their original format; SDR photos still use ImageMagick AVIF
+compression. This requires rebuilding the perceptual container image; custom
+installs need libavif 1.3.0 with `AVIF_LIBXML2` enabled and `avifenc`/`avifdec`
+on PATH. Preserving HDR in an AVIF does not guarantee HDR rendering in Immich's
+previews or every client. `standard/av1-crf28`
 encodes PQ/HLG as 10-bit AV1 without tone mapping and checks color signalling
 and static HDR metadata after encoding. Dolby Vision/HDR10+ inputs and outputs
 that fail validation fall back to uploading the original. HDR probing scans
