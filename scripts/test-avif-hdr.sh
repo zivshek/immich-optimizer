@@ -15,7 +15,14 @@ case "$*" in
   *-j*)
     case "$TEST_CASE" in
       sdr) echo '[{"File:FileType":"JPEG","EXIF:BitsPerSample":"8 8 8","XMP-GCamera:HDRPlusMakerNote":"binary"}]' ;;
-      heif) echo '[{"File:FileType":"HEIC"}]' ;;
+      sdr-jumbf) echo '[{"File:FileType":"JPEG","File:ImageWidth":6144,"File:ImageHeight":8160,"File:BitsPerSample":8,"JUMBF:JUMDType":"c2pa","JUMBF:JUMDLabel":"c2pa","XMP-GCamera:HDRPlusMakerNote":"binary"}]' ;;
+      sdr-mpf) echo '[{"File:FileType":"JPEG","MPF:MPImage2":"portrait preview","MPF:NumberOfImages":2}]' ;;
+      sdr-aux) echo '[{"File:FileType":"JPEG","XMP:AuxiliaryImageType":"depth"}]' ;;
+      sdr-heif) echo '[{"File:FileType":"HEIC"}]' ;;
+      sdr-depth) echo '[{"File:FileType":"PNG","PNG:BitDepth":16}]' ;;
+      hdr-jumbf) echo '[{"File:FileType":"JPEG","JUMBF:JUMDLabel":"hdrgainmap"}]' ;;
+      heif-aux) echo '[{"File:FileType":"HEIC","QuickTime:AuxiliaryImageType":"urn:com:apple:photo:2020:aux:hdrgainmap"}]' ;;
+      heif) echo '[{"File:FileType":"HEIC","Apple:HDRGainMap":"binary"}]' ;;
       *) echo '[{"File:FileType":"JPEG","XMP-hdrgm:Version":1,"Google:GainMapImage":"binary"}]' ;;
     esac ;;
   *) echo exiftool >> "$TEST_LOG" ;;
@@ -58,15 +65,16 @@ EOF
 cat > "$testdir/bin/fssimu2" <<'EOF'
 #!/bin/sh
 # Simulate a decoder crash if HDR scoring passes an AVIF/JPEG directly.
-if [ "$TEST_CASE" != "sdr" ]; then
-  case "$1:$2" in *.png:*.png) : ;; *) exit 132 ;; esac
-fi
+case "$TEST_CASE" in
+  sdr|sdr-*) : ;;
+  *) case "$1:$2" in *.png:*.png) : ;; *) exit 132 ;; esac ;;
+esac
 [ "$TEST_CASE" != "scorefail" ] || exit 132
 echo 90
 EOF
 chmod +x "$testdir/bin/"*
 printf original > "$testdir/src/photo.jpg"
-for TEST_CASE in hdr missing broken rewrite scorefail heif sdr; do
+for TEST_CASE in hdr hdr-jumbf missing broken rewrite scorefail heif heif-aux sdr sdr-jumbf sdr-mpf sdr-aux sdr-heif sdr-depth; do
   export TEST_CASE
   : > "$TEST_LOG"
   rm -f "$testdir/dst/"*
@@ -74,13 +82,13 @@ for TEST_CASE in hdr missing broken rewrite scorefail heif sdr; do
   sh "$repo/config/perceptual/avif/transcode-image.sh" \
     "$testdir/src/photo.jpg" "$testdir/dst/photo.avif" > "$testdir/output" 2>&1 || status=$?
   case "$TEST_CASE" in
-    hdr)
+    hdr|hdr-jumbf)
       [ "$status" = 0 ]
       [ -s "$testdir/dst/photo.avif" ]
       grep -q -- '--qgain-map 100' "$TEST_LOG"
       ! grep -q magick "$TEST_LOG"
       [ "$(tail -n 1 "$TEST_LOG")" = avifdec ]
-      grep -q 'HDR detection matched tags:.*Google:GainMapImage' "$testdir/output"
+      grep -q 'HDR detection matched tags:' "$testdir/output"
       grep -q 'stage=complete result=optimized' "$testdir/output" ;;
     missing|broken|rewrite|scorefail)
       [ "$status" != 0 ]
@@ -90,14 +98,18 @@ for TEST_CASE in hdr missing broken rewrite scorefail heif sdr; do
         grep -q 'tool=fssimu2 exit=132' "$testdir/output"
         grep -q 'result=failed stage=score' "$testdir/output"
       fi ;;
-    heif)
+    heif|heif-aux)
       [ "$status" = 0 ]
       cmp "$testdir/src/photo.jpg" "$testdir/dst/photo.jpg"
       ! grep -q 'avifenc\|magick' "$TEST_LOG" ;;
-    sdr)
+    sdr|sdr-*)
       [ "$status" = 0 ]
+      [ -s "$testdir/dst/photo.avif" ]
       grep -q magick "$TEST_LOG"
-      ! grep -q avifenc "$TEST_LOG" ;;
+      ! grep -q avifenc "$TEST_LOG"
+      grep -q 'route=sdr reason=no-HDR-specific-metadata' "$testdir/output"
+      ! grep -q 'retaining original' "$testdir/output"
+      ! grep -q 'stage=validate-gain-map' "$testdir/output" ;;
   esac
   echo "PASS: $TEST_CASE"
 done

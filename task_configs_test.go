@@ -212,7 +212,7 @@ func TestPerceptualImagesUseDashboardSsimulacra2Target(t *testing.T) {
 		"avifdec --info",
 		"validate_gain_map",
 		"GainMap|HDR",
-		"HEIC|HEIF|HIF",
+		"route=sdr reason=no-HDR-specific-metadata",
 		"retaining original to preserve HDR",
 	} {
 		if !strings.Contains(string(avifScript), expected) {

@@ -35,6 +35,9 @@ jobs:
       - name: Test
         run: go test -v ./...
 
+      - name: Test AVIF HDR and SDR routing
+        run: sh scripts/test-avif-hdr.sh
+
   publish-standard:
     name: Publish standard container
     if: github.event_name != 'pull_request'

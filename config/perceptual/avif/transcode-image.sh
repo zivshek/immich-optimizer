@@ -27,22 +27,27 @@ metadata=$(exiftool -j -G1 -s -api ExtractEmbedded=1 "$src")
 printf '%s' "$metadata" | jq -e 'length == 1 and (.[0] | has("ExifTool:Error") | not)' >/dev/null
 printf '%s' "$metadata" | jq -r '.[0] | to_entries[] | select(.key | test("(^File:FileType$|ImageWidth$|ImageHeight$|BitsPerSample$|BitDepth$)")) | "[avif] source \(.key)=\(.value)"'
 hdr_jpeg=0
+# JUMBF/C2PA, MPF images, auxiliary depth images, HEIF containers, and high
+# bit depth also occur in SDR photos. Require HDR-specific evidence instead.
 hdr_reasons=$(printf '%s' "$metadata" | jq -r '.[0] | to_entries | map(select(
-  (.key | test("GainMap|HDRCapacity|XMP-hdrgm:|AuxiliaryImage|MPImage|JUMBF"; "i")) or
-  (.key | test("FileType$")) and (.value | tostring | test("HEIC|HEIF|HIF"; "i")) or
-  (.key | test("BitDepth$|BitsPerSample$")) and (.value | tostring | test("^(10|12|16|32|64)( |$)")) or
-  (.key | test("TransferCharacteristics$|TransferFunction$")) and (.value | tostring | test("PQ|HLG|2084|B67|^(16|18)$"; "i"))
-)) | .[].key' | paste -sd ',' -)
+  (.key | test("GainMap|HDRCapacity|XMP-hdrgm:|HDRHeadroom"; "i")) or
+  ((.key | test("(JUMBF:.*(Type|Label)|AuxiliaryImage(Type|SubType)|MPImage.*Type)$"; "i")) and
+    (.value | tostring | test("gain.?map|hdrgm|21496"; "i"))) or
+  ((.key | test("TransferCharacteristics$|TransferFunction$")) and
+    (.value | tostring | test("PQ|HLG|2084|B67|^(16|18)$"; "i")))
+)) | map(.key) | join(",")')
 if [ -n "$hdr_reasons" ]; then
   printf '[avif] HDR detection matched tags: %s\n' "$hdr_reasons"
   if printf '%s' "$metadata" | jq -e '.[0]["File:FileType"] == "JPEG"' >/dev/null; then
     hdr_jpeg=1
     echo "[avif] route=gain-map-jpeg (HDR metadata detected; gain-map pixels not yet verified). Ultra HDR JPEG: encoding AVIF with a lossless gain map; image score evaluates the SDR base"
   else
-    echo "[avif] result=passthrough reason=unsupported-HDR-source; unsupported HDR/HEIF/high-depth source: retaining original to preserve HDR"
+    echo "[avif] result=passthrough reason=unsupported-HDR-source; unsupported HDR source: retaining original to preserve HDR"
     cp "$src" "$(dirname "$dst")/$(basename "$src")"
     exit 0
   fi
+else
+  echo "[avif] route=sdr reason=no-HDR-specific-metadata; optimizing with perceptual AVIF"
 fi
 workdir=$(dirname "$dst")
 candidate="${workdir}/candidate.avif"

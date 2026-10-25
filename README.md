@@ -310,10 +310,12 @@ conversion. The gain map is encoded losslessly; the selected SSIMULACRA2 score
 measures decoded SDR-base PNGs, not reconstructed HDR quality. This avoids
 passing gain-map AVIF containers directly to the metric decoder. The output gain map
 is decoded and checked before and after metadata restoration. Unsupported JPEG
-gain maps fall back to the original. HEIC/HEIF and other detected HDR/high-depth
-sources retain their original format; SDR photos still use ImageMagick AVIF
-compression. This requires rebuilding the perceptual container image; custom
-installs need libavif 1.3.0 with `AVIF_LIBXML2` enabled and `avifenc`/`avifdec`
+gain maps fall back to the original. HDR detected in other source formats
+retains its original format; SDR photos use ImageMagick AVIF compression.
+Generic JUMBF/C2PA metadata, portrait/auxiliary images, HEIC/HEIF containers,
+and high bit depth alone do not mark a photo as HDR. Only HDR-specific gain-map,
+headroom, or PQ/HLG transfer metadata selects HDR preservation. This requires
+rebuilding the perceptual container image; custom installs need libavif 1.3.0 with `AVIF_LIBXML2` enabled and `avifenc`/`avifdec`
 on PATH. Preserving HDR in an AVIF does not guarantee HDR rendering in Immich's
 previews or every client. `standard/av1-crf28`
 encodes PQ/HLG as 10-bit AV1 without tone mapping and checks color signalling
