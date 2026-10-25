@@ -30,7 +30,17 @@ fi
 # in a clip. Probe errors fail the task so the watcher uploads the original.
 source_probe=$(mktemp)
 output_probe=$(mktemp)
-trap 'rm -f "$source_probe" "$output_probe"' EXIT
+current_stage=probe-source
+finish() {
+  result=$?
+  if [ "$result" -ne 0 ]; then
+    printf '[av1] result=failed stage=%s exit=%s; original-file fallback required\n' "$current_stage" "$result" >&2
+  fi
+  rm -f "$source_probe" "$output_probe"
+  exit "$result"
+}
+trap finish EXIT
+echo "[av1] stage=probe-source scanning frame metadata for HDR"
 probe_hdr() {
   ffprobe -v error -select_streams v:0 -show_streams -show_frames \
     -show_entries stream=pix_fmt,color_transfer,color_primaries,color_space,color_range:stream_side_data:frame_side_data \
@@ -38,6 +48,8 @@ probe_hdr() {
 }
 probe_hdr "$src" "$source_probe"
 jq -e '.streams | length == 1' "$source_probe" >/dev/null
+jq -c '.streams[0] | {pix_fmt,color_transfer,color_primaries,color_space,color_range}' "$source_probe" | sed 's/^/[av1] source=/'
+jq -c '[.. | objects | .side_data_type? // empty] | unique' "$source_probe" | sed 's/^/[av1] source_side_data=/'
 if jq -e '[.. | objects | .side_data_type? // empty] | any(test("DOVI|Dolby|HDR Dynamic|2094"; "i"))' "$source_probe" >/dev/null; then
   echo "dynamic HDR requires original-file preservation; refusing transcode" >&2
   exit 1
@@ -68,6 +80,8 @@ for field in color_transfer color_primaries color_space color_range; do
   fi
 done
 echo "encoding AV1 with CRF ${crf} and pixel format ${output_pix_fmt}"
+current_stage=encode
+echo "[av1] stage=encode codec=libsvtav1 preset=6 crf=${crf} output_pix_fmt=${output_pix_fmt}"
 ffmpeg -hide_banner -y \
   -noautorotate \
   -i "$src" \
@@ -85,6 +99,8 @@ ffmpeg -hide_banner -y \
   -movflags +faststart+use_metadata_tags \
   "$dst"
 
+current_stage=restore-metadata
+echo "[av1] stage=restore-metadata"
 exiftool -overwrite_original -m \
   -api ExtractEmbedded=1 \
   -api QuickTimeUTC=1 \
@@ -104,7 +120,10 @@ done
 
 # Compare encoded HDR signalling after all metadata writes. Older FFmpeg/SVT
 # builds may drop static HDR metadata; never upload that output in its place.
+current_stage=validate-output
+echo "[av1] stage=validate-output scanning encoded frame metadata"
 probe_hdr "$dst" "$output_probe"
+jq -c '.streams[0] | {pix_fmt,color_transfer,color_primaries,color_space,color_range}' "$output_probe" | sed 's/^/[av1] output=/'
 if [ "$output_pix_fmt" = "yuv420p10le" ]; then
   [ "$(jq -r '.streams[0].pix_fmt' "$output_probe")" = "$output_pix_fmt" ] || exit 1
 fi
@@ -112,7 +131,7 @@ for field in color_transfer color_primaries color_space color_range; do
   expected=$(jq -r --arg field "$field" '.streams[0][$field] // "unknown"' "$source_probe")
   actual=$(jq -r --arg field "$field" '.streams[0][$field] // "unknown"' "$output_probe")
   if [ "$expected" != "unknown" ] && [ "$expected" != "$actual" ]; then
-    echo "HDR/color validation failed for ${field}; retaining original" >&2
+    echo "HDR/color validation failed for ${field}: expected=${expected} actual=${actual}; retaining original" >&2
     exit 1
   fi
 done
@@ -121,6 +140,10 @@ hdr_signature() {
     .side_data_type? == "Content light level metadata")] | unique' "$1"
 }
 if [ "$(hdr_signature "$source_probe")" != "$(hdr_signature "$output_probe")" ]; then
-  echo "HDR/color validation failed; retaining original" >&2
+  echo "HDR/color validation failed; retaining original"
+  printf '[av1] expected_static_HDR=%s\n' "$(hdr_signature "$source_probe")" >&2
+  printf '[av1] actual_static_HDR=%s\n' "$(hdr_signature "$output_probe")" >&2 >&2
   exit 1
 fi
+
+echo "[av1] stage=complete result=optimized bytes=$(wc -c < "$dst" | tr -d '[:space:]') crf=${crf} pixel_format=${output_pix_fmt}"

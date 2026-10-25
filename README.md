@@ -307,7 +307,8 @@ restores and validates embedded metadata.
 HDR preservation in these two profiles is conservative. `perceptual/avif`
 converts supported Ultra HDR JPEGs to AVIF using libavif's native gain-map
 conversion. The gain map is encoded losslessly; the selected SSIMULACRA2 score
-measures the SDR base image, not reconstructed HDR quality. The output gain map
+measures decoded SDR-base PNGs, not reconstructed HDR quality. This avoids
+passing gain-map AVIF containers directly to the metric decoder. The output gain map
 is decoded and checked before and after metadata restoration. Unsupported JPEG
 gain maps fall back to the original. HEIC/HEIF and other detected HDR/high-depth
 sources retain their original format; SDR photos still use ImageMagick AVIF
@@ -320,6 +321,13 @@ and static HDR metadata after encoding. Dolby Vision/HDR10+ inputs and outputs
 that fail validation fall back to uploading the original. HDR probing scans
 video frame metadata and adds processing time. Existing AV1 passthrough and
 APAC preservation remain in effect.
+
+Processing diagnostics for `perceptual/avif` and `standard/av1-crf28` include
+`[avif]`/`[av1]` stage markers and explicit failure stages. Image logs list the
+metadata tag names that triggered HDR handling, gain-map validation results,
+and scorer exit codes. Video logs show input/output color signalling and
+expected/actual values when validation fails. Successful HDR image encodes
+print summaries; encoder diagnostics are printed in full on an encoding error.
 
 The perceptual AV1 config samples at least five six-second sections, spaced
 every two minutes, before selecting the full encode settings.

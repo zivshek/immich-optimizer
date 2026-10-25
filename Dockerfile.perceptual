@@ -287,6 +287,10 @@ RUN avifenc -q 80 --qgain-map 100 /tmp/hdr-smoke.jpg /tmp/hdr-smoke.avif && \
       -tagsFromFile /tmp/hdr-smoke.jpg -all:all /tmp/hdr-smoke.avif && \
     avifdec --info /tmp/hdr-smoke.avif > /tmp/hdr-smoke.info && \
     grep -E 'Gain map[[:space:]]*:[[:space:]]*[1-9][0-9]*x[1-9][0-9]* pixels' /tmp/hdr-smoke.info && \
+    magick '/tmp/hdr-smoke.jpg[0]' /tmp/hdr-source.png && \
+    avifdec /tmp/hdr-smoke.avif /tmp/hdr-candidate.png && \
+    fssimu2 /tmp/hdr-source.png /tmp/hdr-candidate.png && \
+    rm /tmp/hdr-source.png /tmp/hdr-candidate.png && \
     rm /tmp/hdr-smoke.jpg /tmp/hdr-smoke.avif /tmp/hdr-smoke.info && \
     fssimu2 --version && \
     magick -size 64x64 gradient: /tmp/avif-smoke.png && \

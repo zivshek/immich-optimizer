@@ -30,6 +30,10 @@ EOF
 cat > "$testdir/bin/avifdec" <<'EOF'
 #!/bin/sh
 echo avifdec >> "$TEST_LOG"
+if [ "$1" != "--info" ]; then
+  printf decoded > "$2"
+  exit 0
+fi
 case "$TEST_CASE" in
   missing) echo ' * Gain map       : Absent' ;;
   broken) exit 1 ;;
@@ -44,17 +48,25 @@ esac
 EOF
 cat > "$testdir/bin/magick" <<'EOF'
 #!/bin/sh
-echo magick >> "$TEST_LOG"
+case "$*" in
+  *source.png*) echo decode-source >> "$TEST_LOG" ;;
+  *) echo magick >> "$TEST_LOG" ;;
+esac
 for last do :; done
 printf encoded > "$last"
 EOF
 cat > "$testdir/bin/fssimu2" <<'EOF'
 #!/bin/sh
+# Simulate a decoder crash if HDR scoring passes an AVIF/JPEG directly.
+if [ "$TEST_CASE" != "sdr" ]; then
+  case "$1:$2" in *.png:*.png) : ;; *) exit 132 ;; esac
+fi
+[ "$TEST_CASE" != "scorefail" ] || exit 132
 echo 90
 EOF
 chmod +x "$testdir/bin/"*
 printf original > "$testdir/src/photo.jpg"
-for TEST_CASE in hdr missing broken rewrite heif sdr; do
+for TEST_CASE in hdr missing broken rewrite scorefail heif sdr; do
   export TEST_CASE
   : > "$TEST_LOG"
   rm -f "$testdir/dst/"*
@@ -67,10 +79,17 @@ for TEST_CASE in hdr missing broken rewrite heif sdr; do
       [ -s "$testdir/dst/photo.avif" ]
       grep -q -- '--qgain-map 100' "$TEST_LOG"
       ! grep -q magick "$TEST_LOG"
-      [ "$(tail -n 1 "$TEST_LOG")" = avifdec ] ;;
-    missing|broken|rewrite)
+      [ "$(tail -n 1 "$TEST_LOG")" = avifdec ]
+      grep -q 'HDR detection matched tags:.*Google:GainMapImage' "$testdir/output"
+      grep -q 'stage=complete result=optimized' "$testdir/output" ;;
+    missing|broken|rewrite|scorefail)
       [ "$status" != 0 ]
-      ! grep -q magick "$TEST_LOG" ;;
+      ! grep -q magick "$TEST_LOG"
+      grep -q 'result=failed stage=' "$testdir/output"
+      if [ "$TEST_CASE" = "scorefail" ]; then
+        grep -q 'tool=fssimu2 exit=132' "$testdir/output"
+        grep -q 'result=failed stage=score' "$testdir/output"
+      fi ;;
     heif)
       [ "$status" = 0 ]
       cmp "$testdir/src/photo.jpg" "$testdir/dst/photo.jpg"
