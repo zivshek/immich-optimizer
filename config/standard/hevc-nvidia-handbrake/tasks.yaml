@@ -1,0 +1,44 @@
+tasks:
+  - name: handbrake-nvidia-hevc
+    command: >
+      HandBrakeCLI
+      -i "{{.src_folder}}/{{.name}}.{{.extension}}"
+      -o "{{.dst_folder}}/{{.name}}.temp.mkv"
+      --format av_mkv
+      --encoder nvenc_h265_10bit
+      --quality 24
+      --encoder-preset slow
+      --vfr
+      --audio-lang-list any
+      --all-audio
+      --aencoder copy
+      --audio-fallback opus
+      --all-subtitles
+      --markers
+      &&
+      ffmpeg
+      -i "{{.dst_folder}}/{{.name}}.temp.mkv"
+      -i "{{.src_folder}}/{{.name}}.{{.extension}}"
+      -map 0 -map_metadata 1 -c copy -y
+      "{{.dst_folder}}/{{.name}}.mkv"
+      &&
+      rm "{{.dst_folder}}/{{.name}}.temp.mkv"
+    extensions:
+      - 3gp
+      - 3gpp
+      - avi
+      - flv
+      - insv
+      - m2t
+      - m2ts
+      - m4v
+      - mkv
+      - mov
+      - mp4
+      - mpe
+      - mpeg
+      - mpg
+      - mts
+      - ts
+      - webm
+      - wmv

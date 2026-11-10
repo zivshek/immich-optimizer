@@ -17,9 +17,24 @@ const (
 )
 
 var videoExtensions = map[string]struct{}{
-	"3gp": {}, "3gpp": {}, "avi": {}, "flv": {}, "insv": {}, "m2t": {}, "m2ts": {},
-	"m4v": {}, "mkv": {}, "mov": {}, "mp4": {}, "mpe": {}, "mpeg": {}, "mpg": {},
-	"mts": {}, "ts": {}, "webm": {}, "wmv": {},
+	"3gp": {}, "3gpp": {}, "avi": {}, "av1": {}, "flv": {}, "hevc": {}, "insv": {}, "m2t": {}, "m2ts": {},
+	"m4v": {}, "mkv": {}, "mod": {}, "mov": {}, "mp4": {}, "mpe": {}, "mpeg": {}, "mpg": {},
+	"mts": {}, "tod": {}, "ts": {}, "webm": {}, "wmv": {},
+}
+
+// Keep combined files loadable for existing IUO_TASKS_FILE installations, but
+// expose only independent image/video choices in the dashboard.
+var legacyStandardConfigs = map[string][2]string{
+	"standard/mixed-lossless-images-nvidia-ffmpeg":    {"standard/lossless", "standard/hevc-nvidia-ffmpeg"},
+	"standard/mixed-lossless-images-nvidia-handbrake": {"standard/lossless", "standard/hevc-nvidia-handbrake"},
+	"standard/lossless-caesium-nvidia-ffmpeg":         {"standard/lossless-caesium", "standard/hevc-nvidia-ffmpeg"},
+	"standard/balanced-jxl-nvidia-ffmpeg":             {"standard/balanced-jxl", "standard/hevc-nvidia-ffmpeg"},
+	"standard/balanced-caesium-nvidia-ffmpeg":         {"standard/balanced-caesium", "standard/hevc-nvidia-ffmpeg"},
+	"standard/balanced-avif-nvidia-ffmpeg":            {"standard/balanced-avif", "standard/hevc-nvidia-ffmpeg"},
+	"standard/storage-saver-nvidia-gpu":               {"standard/passthrough-images", "standard/hevc-nvidia-fast"},
+	"standard/storage-saver-amd-gpu":                  {"standard/jxl-resize", "standard/hevc-vaapi"},
+	"standard/profile1":                               {"standard/jxl-q75", "standard/handbrake"},
+	"standard/passthrough-all":                        {"standard/passthrough-images", "standard/passthrough-videos"},
 }
 
 type TaskConfigOption struct {
@@ -93,16 +108,37 @@ func (registry *TaskConfigRegistry) Register(watcher *FileWatcher) error {
 		if selected == "perceptual/perceptual-hevc-webp-nvidia" {
 			migratedNvidia = true
 		}
-		selected = migratedPerceptualConfigName(selected, mediaType)
 		if selected == "" {
 			selected = configNameForPath(configs, watcher.profile.ConfigFile)
+			if selected == "" {
+				// Legacy combined configs are intentionally absent from discovery.
+				relative, err := filepath.Rel(registry.bundledRoot, filepath.Dir(watcher.profile.ConfigFile))
+				if err == nil {
+					name := filepath.ToSlash(relative)
+					if _, ok := legacyStandardConfigs[name]; ok {
+						selected = name
+					}
+				}
+			}
 		}
+		previous := selected
+		selected = migratedTaskConfigName(selected, mediaType)
 		if selected == "" {
 			continue
 		}
 		config, ok := configs[selected]
 		if !ok || !config.supports(mediaType) {
-			continue
+			// A single-purpose startup config leaves the other media type intact.
+			selected = "standard/passthrough-" + mediaType + "s"
+			config, ok = configs[selected]
+			if !ok || !config.supports(mediaType) {
+				continue
+			}
+		}
+		if selected != previous {
+			if err := registry.store.RecordMediaTaskConfigSelection(watcher.profile.Name, mediaType, selected); err != nil {
+				return err
+			}
 		}
 		watcher.setConfig(mediaType, config.Config, config.Path, config.Name)
 	}
@@ -140,7 +176,13 @@ func (registry *TaskConfigRegistry) Register(watcher *FileWatcher) error {
 	return nil
 }
 
-func migratedPerceptualConfigName(name, mediaType string) string {
+func migratedTaskConfigName(name, mediaType string) string {
+	if pair, ok := legacyStandardConfigs[name]; ok {
+		if mediaType == mediaTypeImage {
+			return pair[0]
+		}
+		return pair[1]
+	}
 	switch name {
 	case "perceptual/perceptual-av1":
 		if mediaType == mediaTypeImage {
@@ -347,6 +389,9 @@ func (registry *TaskConfigRegistry) discover() (map[string]discoveredTaskConfig,
 	}
 	configs := make(map[string]discoveredTaskConfig, len(paths))
 	for name, path := range paths {
+		if _, legacy := legacyStandardConfigs[name]; legacy {
+			continue
+		}
 		config, err := NewConfig(&path)
 		if err != nil {
 			return nil, fmt.Errorf("load task config %q: %w", name, err)

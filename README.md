@@ -146,9 +146,11 @@ spatial-audio track.
 `IUO_TASKS_FILE` initializes both selections when no dashboard selection has
 been saved. A custom config may contain only image tasks or only video tasks;
 its scripts remain relative to the folder containing its `tasks.yaml`.
-Saved selections using the former combined perceptual config names migrate to
-the matching independent choices automatically. Legacy `IUO_TASKS_FILE` paths
-for those removed combined configs are also rewritten during startup.
+Saved combined image/video selections migrate to independent choices automatically.
+Legacy standard config folders remain loadable for existing `IUO_TASKS_FILE`
+paths, but are hidden from dashboard choices. Legacy perceptual paths are
+rewritten during startup. A single-purpose bundled startup config uses passthrough for
+the other media type until you select a config for it.
 
 The dashboard does not currently provide authentication. Keep port `8098` on a
 trusted network or place it behind an authenticated reverse proxy. When using a
@@ -200,28 +202,18 @@ docker compose -f compose.multi-user.yaml -f compose.gpu-vaapi.yaml up -d
 docker compose -f compose.multi-user.yaml -f compose.gpu-nvidia.yaml up -d
 ```
 
-The bundled `storage-saver-amd-gpu` and `storage-saver-nvidia-gpu` task
-profiles provide starting points. Confirm the container user can access
-`/dev/dri` on VAAPI hosts; some systems require adding the host render group.
+Choose image and video processing independently in the dashboard. For example:
 
-For lossless image optimization combined with HandBrake NVIDIA video
-transcoding, use:
+| Goal | Image config | Video config |
+| --- | --- | --- |
+| Lossless photos, unchanged videos (default) | `standard/lossless` | `standard/passthrough-videos` |
+| Lossless photos, NVIDIA HEVC with FFmpeg | `standard/lossless` | `standard/hevc-nvidia-ffmpeg` |
+| Lossless photos, NVIDIA HEVC with HandBrake | `standard/lossless` | `standard/hevc-nvidia-handbrake` |
+| Lossless photos, AMD/Intel VAAPI video | `standard/lossless` | `standard/hevc-vaapi` |
 
-```yaml
-IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/standard/mixed-lossless-images-nvidia-handbrake/tasks.yaml
-```
-
-`cjxl --lossless_jpeg=1` is specifically a reversible JPEG-to-JXL conversion.
-It preserves the original JPEG bitstream inside the JXL file. For non-JPEG
-images, the mixed profile uses `cjxl -d 0` for pixel-lossless conversion or
-Caesium lossless optimization while preserving the original format.
-
-For the same lossless image handling with phone-video rotation preserved as
-display metadata and high-quality FFmpeg NVENC encoding, use:
-
-```yaml
-IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/standard/mixed-lossless-images-nvidia-ffmpeg/tasks.yaml
-```
+The NVIDIA FFmpeg video config preserves stored frame dimensions and display
+rotation. Confirm that the container user can access `/dev/dri` for VAAPI;
+some systems require adding the host render group.
 
 This profile disables FFmpeg autorotation, preserves the stored frame
 dimensions and source display rotation, applies no scale or crop filters, and
@@ -242,40 +234,36 @@ docker exec immich-optimizer ffmpeg -hide_banner -f lavfi \
   -i color=size=1280x720:rate=30 -t 1 -c:v hevc_nvenc -f null -
 ```
 
-Three balanced NVIDIA/FFmpeg profiles are bundled for different image
-compatibility and compression goals:
+Image configs have names independent of video codecs and GPUs:
 
-Standard profile sources live under `config/standard`; perceptual profile
-sources live under `config/perceptual`.
+| Image config | Behavior |
+| --- | --- |
+| `standard/lossless` | Reversible JPEG-to-JXL; supported SDR raster images use pixel-lossless JXL; detected HDR and other formats retain originals |
+| `standard/lossless-caesium` | Caesium lossless optimization, retaining source formats |
+| `standard/balanced-jxl` | JPEG-to-JXL at distance 1; supported non-JPEG images use lossless JXL |
+| `standard/balanced-caesium` | JPEG quality 85; PNG/WebP lossless optimization |
+| `standard/balanced-avif` | JPEG/PNG/WebP to AVIF at quality 65 |
+| `standard/jxl-q75` | Legacy quality-75 image recipe, including HEIC conversion |
+| `standard/jxl-resize` | Resize to fit 4096×4096 and encode JXL at quality 80 |
+| `standard/passthrough-images` | Upload original images |
+| `perceptual/webp`, `perceptual/avif`, `perceptual/jxl` | Search for image quality meeting the Image Score |
 
-```yaml
-# JPEG XL: strongest JPEG recompression, but limited support after download
-IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/standard/balanced-jxl-nvidia-ffmpeg/tasks.yaml
+Standard video choices are `standard/av1-crf28`, `standard/hevc-nvidia-ffmpeg`,
+`standard/hevc-nvidia-handbrake`, `standard/hevc-nvidia-fast`,
+`standard/hevc-vaapi`, `standard/handbrake` (the legacy imported preset),
+and `standard/passthrough-videos`. Perceptual video choices are
+`perceptual/av1` and `perceptual/hevc`.
 
-# Standard JPEG: broadest compatibility
-IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/standard/balanced-caesium-nvidia-ffmpeg/tasks.yaml
+Standard choices work in the `:latest` image. Perceptual choices require the
+`:perceptual` image. The dashboard disables quality controls unused by the
+selected bundled config. Custom configs may still use those controls.
 
-# AVIF: stronger compression with wider support than JPEG XL
-IUO_TASKS_FILE: /etc/immich-optimizer/bundled-configs/standard/balanced-avif-nvidia-ffmpeg/tasks.yaml
-
-# Dashboard image choices: perceptual/webp, perceptual/avif, perceptual/jxl
-# Dashboard video choices: standard/av1-crf28, perceptual/av1, perceptual/hevc
-```
-
-The first three profiles are available in the standard `:latest` image. The
-perceptual image and video choices require
-`ghcr.io/zivshek/immich-optimizer:perceptual`.
-
-For WebP images with SVT-AV1 videos, select `perceptual/webp` in the image
-dropdown and either `standard/av1-crf28` or `perceptual/av1` in the video
-dropdown.
-
-The JPEG XL profile uses distance `1.0`; the Caesium profile keeps JPEG/JPG as
-standard JPEG at quality `85`; and the AVIF profile converts JPEG, PNG, and
-WebP to AVIF at ImageMagick quality `65`. All three restore and validate photo
-metadata after conversion and use the same orientation-preserving NVIDIA video
-task. These image conversions are lossy and cannot reconstruct the original
-files bit-for-bit.
+Standard source folders live under `config/standard`; perceptual sources live
+under `config/perceptual`. Old combined standard folders are compatibility
+recipes, not additional dashboard choices. Their image and video selections
+migrate separately, including the former `mixed-lossless-images-*`,
+`balanced-*-nvidia-ffmpeg`, `storage-saver-*-gpu`, `profile1`, and
+`passthrough-all` names.
 
 Metadata-copying profiles enable ExifTool's `ExtractEmbedded` option so tags
 stored inside embedded media data are considered during copying and validation.
@@ -293,6 +281,24 @@ meeting the selected score. The perceptual AV1 video config uses
 defaults to VMAF `95`, and SVT-AV1. It is
 CPU-heavy, but it searches for an AV1 encode that meets a perceptual quality
 target instead of applying one fixed quality number to every file.
+
+JPEG XL supports both lossless and lossy compression. `perceptual/jxl` uses
+lossy encoding and the Image Score controls its quality/size tradeoff. For
+lossless images, select `standard/lossless` instead. It uses
+`cjxl --lossless_jpeg=1` for JPEG and verifies byte-for-byte JPEG reconstruction;
+supported SDR non-JPEG images use `-d 0`. It does not use the perceptual score.
+Detected HDR images retain their originals, preserving HDR without lossy AVIF
+conversion. Floating-point EXR/PFM and other unsupported formats also pass
+through. Pixel-lossless JXL encoding uses `-d 0` (equivalently `-q 100`). Lossless JPEG reconstruction
+alone does not guarantee that viewers render an embedded HDR gain map.
+
+`perceptual/jxl` detects HDR-specific gain-map, headroom, and PQ/HLG metadata
+before encoding. HDR sources use the sibling `perceptual/avif` script: supported
+Ultra HDR JPEGs become AVIF with a validated lossless gain map, and unsupported
+HDR sources retain their original format. SDR sources continue to become JXL.
+This preserves HDR rather than flattening a gain-map JPEG to SDR; it does not
+produce native HDR JXL. The two profile folders must remain siblings in custom
+installations. The normal image savings threshold still applies.
 
 The standard `av1-crf28` video config performs one SVT-AV1 encode at preset
 `6`, without VMAF sampling. Its CRF comes from the dashboard's per-profile
@@ -445,31 +451,14 @@ Options:
 
 ## 📋 Optimization Profiles
 
-The optimizer includes three pre-configured profiles:
+Image and video configs are selected independently in the dashboard. Use
+`standard/lossless` for lossless images and `standard/passthrough-videos` for
+unchanged videos. Choose a video encoder separately when video compression is
+wanted. The tables above describe the available choices.
 
-### 🔒 Lossless Profile (Default)
-```yaml
-# Located at: config/standard/lossless/tasks.yaml
-# - Lossless JPEG-XL conversion for images
-# - Caesium lossless compression
-# - Passthrough for videos (no compression)
-```
-
-### ⚡ Lossy Profile
-```yaml
-# Located at: config/standard/profile1/tasks.yaml
-# - Lossy JPEG-XL conversion (quality 75)
-# - Caesium compression (quality 85)
-# - HandBrake video compression
-# - HEIC to JPEG-XL conversion
-```
-
-### 📤 Passthrough Profile
-```yaml
-# Located at: config/standard/passthrough-all/tasks.yaml
-# - No optimization, uploads files as-is
-# - Useful for testing or when optimization is not desired
-```
+`IUO_TASKS_FILE` supplies the startup fallback. For the default
+`standard/lossless/tasks.yaml`, the dashboard initializes lossless image
+processing and video passthrough. Existing saved selections take precedence.
 
 ## 🛠️ Custom Configuration
 
@@ -482,7 +471,6 @@ tasks:
     extensions:
       - jpeg
       - jpg
-      - png
       
   - name: video-compress
     command: HandBrakeCLI -i {{.src_folder}}/{{.name}}.{{.extension}} -o {{.dst_folder}}/{{.name}}.mp4 --preset="Fast 1080p30"

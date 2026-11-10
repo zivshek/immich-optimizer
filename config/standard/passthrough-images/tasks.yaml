@@ -1,0 +1,30 @@
+tasks:
+  - name: passthrough-images
+    command: ""
+    extensions:
+      - avif
+      - bmp
+      - dng
+      - exr
+      - gif
+      - heic
+      - heif
+      - insp
+      - jpe
+      - jpeg
+      - jpg
+      - jxl
+      - pam
+      - pfm
+      - pgm
+      - pgx
+      - pnm
+      - png
+      - ppm
+      - psd
+      - raw
+      - rw2
+      - svg
+      - tif
+      - tiff
+      - webp

@@ -1,0 +1,36 @@
+tasks:
+  - name: caesium-lossless
+    command: >
+      caesiumclt --lossless --keep-dates --exif
+      -o "{{.dst_folder}}"
+      "{{.src_folder}}/{{.name}}.{{.extension}}"
+    extensions:
+      - jpeg
+      - jpg
+      - png
+      - webp
+
+  - name: passthrough-images
+    command: ""
+    extensions:
+      - avif
+      - bmp
+      - dng
+      - exr
+      - gif
+      - heic
+      - heif
+      - insp
+      - jxl
+      - pam
+      - pfm
+      - pgm
+      - pgx
+      - pnm
+      - ppm
+      - psd
+      - raw
+      - rw2
+      - svg
+      - tif
+      - tiff

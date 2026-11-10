@@ -1,0 +1,26 @@
+tasks:
+  - name: passthrough-videos
+    command: ""
+    extensions:
+      - 3gp
+      - 3gpp
+      - avi
+      - av1
+      - flv
+      - hevc
+      - insv
+      - m2t
+      - m2ts
+      - m4v
+      - mkv
+      - mod
+      - mov
+      - mp4
+      - mpe
+      - mpeg
+      - mpg
+      - mts
+      - tod
+      - ts
+      - webm
+      - wmv

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Behavioral checks for routing and fail-closed HDR validation. Requires jq.
+# Behavioral checks for AVIF/JXL routing and fail-closed HDR validation. Requires jq.
 # Encoder/metric mocks isolate the profile; the Docker build separately runs
 # a real libavif Ultra HDR fixture conversion and decodes its gain map.
 set -eu
@@ -23,6 +23,10 @@ case "$*" in
       hdr-jumbf) echo '[{"File:FileType":"JPEG","JUMBF:JUMDLabel":"hdrgainmap"}]' ;;
       heif-aux) echo '[{"File:FileType":"HEIC","QuickTime:AuxiliaryImageType":"urn:com:apple:photo:2020:aux:hdrgainmap"}]' ;;
       heif) echo '[{"File:FileType":"HEIC","Apple:HDRGainMap":"binary"}]' ;;
+      pq) echo '[{"File:FileType":"PNG","PNG:TransferFunction":"PQ"}]' ;;
+      hlg) echo '[{"File:FileType":"HEIC","QuickTime:TransferCharacteristics":18}]' ;;
+      probe-error) echo '[{"ExifTool:Error":"bad metadata"}]' ;;
+      probe-malformed) echo 'invalid json' ;;
       *) echo '[{"File:FileType":"JPEG","XMP-hdrgm:Version":1,"Google:GainMapImage":"binary"}]' ;;
     esac ;;
   *) echo exiftool >> "$TEST_LOG" ;;
@@ -72,15 +76,27 @@ esac
 [ "$TEST_CASE" != "scorefail" ] || exit 132
 echo 90
 EOF
+cat > "$testdir/bin/cjxl" <<'EOF'
+#!/bin/sh
+echo "cjxl $*" >> "$TEST_LOG"
+for last do :; done
+printf encoded > "$last"
+EOF
+cat > "$testdir/bin/djxl" <<'EOF'
+#!/bin/sh
+echo djxl >> "$TEST_LOG"
+printf decoded > "$2"
+EOF
 chmod +x "$testdir/bin/"*
 printf original > "$testdir/src/photo.jpg"
-for TEST_CASE in hdr hdr-jumbf missing broken rewrite scorefail heif heif-aux sdr sdr-jumbf sdr-mpf sdr-aux sdr-heif sdr-depth; do
+for profile in avif jxl; do
+for TEST_CASE in hdr hdr-jumbf missing broken rewrite scorefail heif heif-aux pq hlg probe-error probe-malformed sdr sdr-jumbf sdr-mpf sdr-aux sdr-heif sdr-depth; do
   export TEST_CASE
   : > "$TEST_LOG"
   rm -f "$testdir/dst/"*
   status=0
-  sh "$repo/config/perceptual/avif/transcode-image.sh" \
-    "$testdir/src/photo.jpg" "$testdir/dst/photo.avif" > "$testdir/output" 2>&1 || status=$?
+  sh "$repo/config/perceptual/$profile/transcode-image.sh" \
+    "$testdir/src/photo.jpg" "$testdir/dst/photo.$profile" > "$testdir/output" 2>&1 || status=$?
   case "$TEST_CASE" in
     hdr|hdr-jumbf)
       [ "$status" = 0 ]
@@ -98,20 +114,38 @@ for TEST_CASE in hdr hdr-jumbf missing broken rewrite scorefail heif heif-aux sd
         grep -q 'tool=fssimu2 exit=132' "$testdir/output"
         grep -q 'result=failed stage=score' "$testdir/output"
       fi ;;
-    heif|heif-aux)
+    heif|heif-aux|pq|hlg)
       [ "$status" = 0 ]
       cmp "$testdir/src/photo.jpg" "$testdir/dst/photo.jpg"
       ! grep -q 'avifenc\|magick' "$TEST_LOG" ;;
+    probe-error|probe-malformed)
+      [ "$status" != 0 ]
+      [ -z "$(ls -A "$testdir/dst")" ]
+      [ ! -s "$TEST_LOG" ] ;;
     sdr|sdr-*)
       [ "$status" = 0 ]
-      [ -s "$testdir/dst/photo.avif" ]
-      grep -q magick "$TEST_LOG"
+      [ -s "$testdir/dst/photo.$profile" ]
+      if [ "$profile" = avif ]; then
+        grep -q magick "$TEST_LOG"
+        grep -q 'route=sdr reason=no-HDR-specific-metadata' "$testdir/output"
+      else
+        grep -q cjxl "$TEST_LOG"
+        grep -q djxl "$TEST_LOG"
+        grep -q 'route=sdr; optimizing with perceptual JXL' "$testdir/output"
+        ! grep -q magick "$TEST_LOG"
+      fi
       ! grep -q avifenc "$TEST_LOG"
-      grep -q 'route=sdr reason=no-HDR-specific-metadata' "$testdir/output"
       ! grep -q 'retaining original' "$testdir/output"
       ! grep -q 'stage=validate-gain-map' "$testdir/output" ;;
   esac
-  echo "PASS: $TEST_CASE"
+  if [ "$profile" = jxl ]; then
+    case "$TEST_CASE" in hdr|hdr-jumbf|missing|broken|rewrite|scorefail|heif|heif-aux|pq|hlg)
+      ! grep -q 'cjxl\|djxl' "$TEST_LOG"
+      [ ! -e "$testdir/dst/photo.jxl" ] ;;
+    esac
+  fi
+  echo "PASS: $profile $TEST_CASE"
+done
 done
 
 # A crashed native tool must keep its status and identify the exact build step.

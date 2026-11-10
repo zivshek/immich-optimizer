@@ -1,0 +1,25 @@
+tasks:
+  - name: images-magick-jxl
+    command: >
+      magick "{{.src_folder}}/{{.name}}.{{.extension}}"
+      -auto-orient
+      -resize 4096x4096\>
+      ppm:- |
+      cjxl - "{{.dst_folder}}/{{.name}}-new.jxl"
+      -q 80
+      --effort=7
+      && exiftool -overwrite_original -api ExtractEmbedded=1
+      -tagsfromfile "{{.src_folder}}/{{.name}}.{{.extension}}"
+      -all:all -m -Orientation=1 "{{.dst_folder}}/{{.name}}-new.jxl"
+    extensions:
+      - avif
+      - bmp
+      - gif
+      - heic
+      - heif
+      - jpeg
+      - jpg
+      - png
+      - tiff
+      - tif
+      - webp

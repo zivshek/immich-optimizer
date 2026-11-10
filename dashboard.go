@@ -247,6 +247,12 @@ const taskConfigs=document.getElementById('task-configs'),configStatus=document.
 const previousPage=document.getElementById('previous-page'),nextPage=document.getElementById('next-page'),pageLabel=document.getElementById('page-label');
 let currentPage=1,applyingConfig=false;
 const numberValue=(input,fallback)=>input.value.trim()===''?Number(input.defaultValue||fallback):Number(input.value);
+function updateQualityControls(index){
+ const image=document.getElementById('image-config-'+index).value,video=document.getElementById('video-config-'+index).value;
+ for(const [id,unused] of [['image-score-',image.startsWith('standard/')],['video-score-',video.startsWith('standard/')],['video-crf-',!video.startsWith('custom/')&&video!=='standard/av1-crf28']]){
+  const input=document.getElementById(id+index);input.disabled=unused;input.title=unused?'Unused by the selected config':'';
+ }
+}
 copyLog.addEventListener('click',async()=>{
  try{
   await navigator.clipboard.writeText(logs.textContent);
@@ -271,6 +277,7 @@ taskConfigs.addEventListener('change',async event=>{
   configStatus.textContent='Unable to apply: '+error.message;
  }finally{
   applyingConfig=false;imageSelect.disabled=false;imageScore.disabled=false;videoSelect.disabled=false;videoScore.disabled=false;videoCRF.disabled=false;useNvidia.disabled=false;dropAPAC.disabled=false;
+  updateQualityControls(control.dataset.index);
  }
  await refreshTaskConfigs();
 });
@@ -286,6 +293,7 @@ async function refreshTaskConfigs(){
  if(applyingConfig||(document.activeElement&&document.activeElement.classList.contains('config-control')))return;
  const profiles=await fetch('/api/task-configs').then(x=>x.json());
  taskConfigs.innerHTML=profiles.map((p,i)=>'<tr><td>'+esc(p.profile)+'</td><td><select class="config-select config-control" data-index="'+i+'" data-profile="'+esc(p.profile)+'" id="image-config-'+i+'">'+p.image_configs.map(c=>'<option value="'+esc(c.name)+'"'+(c.name===p.image_current?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select></td><td><input class="score-input config-control" data-index="'+i+'" data-profile="'+esc(p.profile)+'" id="image-score-'+i+'" type="number" min="0" max="100" step="1" value="'+p.image_score+'"></td><td><select class="config-select config-control" data-index="'+i+'" data-profile="'+esc(p.profile)+'" id="video-config-'+i+'">'+p.video_configs.map(c=>'<option value="'+esc(c.name)+'"'+(c.name===p.video_current?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select></td><td><input class="score-input config-control" data-index="'+i+'" data-profile="'+esc(p.profile)+'" id="video-score-'+i+'" type="number" min="0" max="100" step="1" value="'+p.video_score+'"></td><td><input class="score-input config-control" data-index="'+i+'" data-profile="'+esc(p.profile)+'" id="video-crf-'+i+'" type="number" min="1" max="63" step="1" value="'+p.video_crf+'"></td><td><label class="nvidia-option"><input class="config-control" data-index="'+i+'" data-profile="'+esc(p.profile)+'" id="use-nvidia-'+i+'" type="checkbox"'+(p.use_nvidia?' checked':'')+'> Use when supported</label></td><td><label class="nvidia-option"><input class="config-control" data-index="'+i+'" data-profile="'+esc(p.profile)+'" id="drop-apac-'+i+'" type="checkbox"'+(p.drop_apac?' checked':'')+'> Drop APAC</label></td></tr>').join('');
+ profiles.forEach((p,i)=>updateQualityControls(i));
 }
 async function refresh(){
  const [s,r,l]=await Promise.all([fetch('/api/stats').then(x=>x.json()),fetch('/api/recent?page='+currentPage).then(x=>x.json()),fetch('/api/logs').then(x=>x.json()),refreshTaskConfigs()]);

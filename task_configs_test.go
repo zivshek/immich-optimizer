@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -409,5 +410,91 @@ func writeTestTaskConfig(t *testing.T, root, name string, contents []byte) {
 	}
 	if err := os.WriteFile(filepath.Join(dir, "tasks.yaml"), contents, 0600); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestBundledConfigsExposeIndependentMediaChoices(t *testing.T) {
+	registry := NewTaskConfigRegistry("config", "missing-custom", nil)
+	configs, err := registry.discover()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, config := range configs {
+		if config.HasImages == config.HasVideos {
+			t.Errorf("%s must contain exactly one media type", name)
+		}
+		if _, legacy := legacyStandardConfigs[name]; legacy {
+			t.Errorf("combined config %s must not appear in dashboard", name)
+		}
+	}
+	for old, pair := range legacyStandardConfigs {
+		for i, mediaType := range []string{mediaTypeImage, mediaTypeVideo} {
+			config, ok := configs[pair[i]]
+			if !ok || !config.supports(mediaType) {
+				t.Errorf("%s has invalid %s replacement %s", old, mediaType, pair[i])
+			}
+		}
+	}
+	lossless := configs["standard/lossless"].Config
+	for _, task := range lossless.Tasks {
+		for _, extension := range task.Extensions {
+			if mediaTypeForExtension(extension) == mediaTypeVideo {
+				t.Errorf("lossless image config contains video extension %s", extension)
+			}
+		}
+	}
+}
+
+func TestRegistryMigratesCombinedStandardConfigs(t *testing.T) {
+	root, err := filepath.Abs("config")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cases := make(map[string][2]string)
+	for name, pair := range legacyStandardConfigs {
+		cases[name] = pair
+	}
+	cases["standard/lossless"] = [2]string{"standard/lossless", "standard/passthrough-videos"}
+	for name, pair := range cases {
+		for _, saved := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/saved=%v", name, saved), func(t *testing.T) {
+				store, err := NewStatsStore(filepath.Join(t.TempDir(), "stats.db"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer store.Close()
+				startup := name
+				if saved {
+					startup = "standard/lossless"
+					for _, mediaType := range []string{mediaTypeImage, mediaTypeVideo} {
+						if err := store.RecordMediaTaskConfigSelection("alice", mediaType, name); err != nil {
+							t.Fatal(err)
+						}
+					}
+				}
+				path := filepath.Join(root, filepath.FromSlash(startup), "tasks.yaml")
+				config, err := NewConfig(&path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				profile := &ProfileConfig{Name: "alice", ConfigFile: path, Tasks: config}
+				watcher := &FileWatcher{profile: profile, config: config, logger: log.New(io.Discard, "", 0)}
+				registry := NewTaskConfigRegistry(root, "missing-custom", store)
+				if err := registry.Register(watcher); err != nil {
+					t.Fatal(err)
+				}
+				if watcher.currentConfigName(mediaTypeImage) != pair[0] || watcher.currentConfigName(mediaTypeVideo) != pair[1] {
+					t.Fatalf("unexpected selections: image=%s video=%s", watcher.currentConfigName(mediaTypeImage), watcher.currentConfigName(mediaTypeVideo))
+				}
+				if saved {
+					for i, mediaType := range []string{mediaTypeImage, mediaTypeVideo} {
+						selected, err := store.SelectedMediaTaskConfig("alice", mediaType)
+						if err != nil || selected != pair[i] {
+							t.Fatalf("migration not persisted: %s=%s, err=%v", mediaType, selected, err)
+						}
+					}
+				}
+			})
+		}
 	}
 }
