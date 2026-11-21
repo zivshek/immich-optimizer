@@ -5,6 +5,8 @@ inbox
 undone
 test-runner
 immich-optimizer.test
+*.test
+dist
 compose*.yaml
 Dockerfile.custom
 Dockerfile.goreleaser

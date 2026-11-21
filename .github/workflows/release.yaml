@@ -38,8 +38,14 @@ jobs:
       - name: Test AVIF and JXL HDR and SDR routing
         run: sh scripts/test-avif-hdr.sh
 
+      - name: Test AV1 progress and failure reporting
+        run: sh scripts/test-av1-progress.sh
+
       - name: Test lossless HDR protection and JPEG reconstruction
         run: sh scripts/test-lossless-hdr.sh
+
+      - name: Test native HDR JXL routing and failure fallback
+        run: sh scripts/test-hdr-jxl.sh
 
   publish-standard:
     name: Publish standard container

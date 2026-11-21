@@ -30,24 +30,90 @@ fi
 # in a clip. Probe errors fail the task so the watcher uploads the original.
 source_probe=$(mktemp)
 output_probe=$(mktemp)
+encode_progress=$(mktemp)
 current_stage=probe-source
+progress_pid=
+stage_started=0
+source_duration=0
+stop_progress() {
+  if [ -n "$progress_pid" ]; then
+    kill "$progress_pid" 2>/dev/null || :
+    wait "$progress_pid" 2>/dev/null || :
+    progress_pid=
+  fi
+}
+report_progress() {
+  elapsed=$(( $(date +%s) - stage_started ))
+  if [ "$current_stage" != encode ]; then
+    printf '[av1] stage=%s elapsed=%ss scanning frame metadata\n' "$current_stage" "$elapsed" >&2
+    return
+  fi
+  # FFmpeg writes machine-readable progress independently of its diagnostic
+  # output. Prefix our summaries so the application's progress filter keeps them.
+  tail -n 32 "$encode_progress" | awk -F= -v elapsed="$elapsed" -v duration="$source_duration" '
+    $1 == "frame" { frame = $2 }
+    $1 == "fps" { fps = $2 }
+    $1 == "out_time_us" { media_us = $2 }
+    $1 == "out_time" { media_time = $2 }
+    $1 == "speed" { speed = $2 }
+    $1 == "total_size" { size = $2 }
+    END {
+      printf "[av1] stage=encode elapsed=%ss", elapsed
+      if (duration + 0 > 0 && media_us ~ /^[0-9]+$/) {
+        percent = media_us / 1000000 / duration * 100
+        if (percent > 100) percent = 100
+        printf " progress=%.1f%%", percent
+      }
+      if (media_time != "") printf " media_time=%s", media_time
+      if (frame != "") printf " frame=%s", frame
+      if (fps != "") printf " fps=%s", fps
+      if (speed != "") printf " speed=%s", speed
+      if (size ~ /^[0-9]+$/) printf " output_mib=%.1f", size / 1048576
+      printf "\n"
+    }
+  ' >&2
+}
+run_with_progress() {
+  stage_started=$(date +%s)
+  (
+    sleeper=
+    trap '[ -z "$sleeper" ] || kill "$sleeper" 2>/dev/null || :; exit 0' TERM INT
+    while :; do
+      sleep 5 &
+      sleeper=$!
+      wait "$sleeper" || exit 0
+      sleeper=
+      report_progress
+    done
+  ) &
+  progress_pid=$!
+  # Keep the encoder/probe exit status; progress logging must never turn a
+  # failed conversion into success or bypass original-file fallback.
+  command_status=0
+  "$@" || command_status=$?
+  stop_progress
+  report_progress
+  return "$command_status"
+}
 finish() {
   result=$?
+  stop_progress
   if [ "$result" -ne 0 ]; then
     printf '[av1] result=failed stage=%s exit=%s; original-file fallback required\n' "$current_stage" "$result" >&2
   fi
-  rm -f "$source_probe" "$output_probe"
+  rm -f "$source_probe" "$output_probe" "$encode_progress"
   exit "$result"
 }
 trap finish EXIT
 echo "[av1] stage=probe-source scanning frame metadata for HDR"
 probe_hdr() {
-  ffprobe -v error -select_streams v:0 -show_streams -show_frames \
-    -show_entries stream=pix_fmt,color_transfer,color_primaries,color_space,color_range:stream_side_data:frame_side_data \
+  run_with_progress ffprobe -v error -select_streams v:0 -show_streams -show_frames -show_format \
+    -show_entries stream=pix_fmt,color_transfer,color_primaries,color_space,color_range:stream_side_data:frame_side_data:format=duration \
     -of json "$1" > "$2"
 }
 probe_hdr "$src" "$source_probe"
 jq -e '.streams | length == 1' "$source_probe" >/dev/null
+source_duration=$(jq -r '.format.duration // 0' "$source_probe")
 jq -c '.streams[0] | {pix_fmt,color_transfer,color_primaries,color_space,color_range}' "$source_probe" | sed 's/^/[av1] source=/'
 jq -c '[.. | objects | .side_data_type? // empty] | unique' "$source_probe" | sed 's/^/[av1] source_side_data=/'
 if jq -e '[.. | objects | .side_data_type? // empty] | any(test("DOVI|Dolby|HDR Dynamic|2094"; "i"))' "$source_probe" >/dev/null; then
@@ -82,7 +148,7 @@ done
 echo "encoding AV1 with CRF ${crf} and pixel format ${output_pix_fmt}"
 current_stage=encode
 echo "[av1] stage=encode codec=libsvtav1 preset=6 crf=${crf} output_pix_fmt=${output_pix_fmt}"
-ffmpeg -hide_banner -y \
+run_with_progress ffmpeg -hide_banner -nostats -stats_period 5 -progress "$encode_progress" -y \
   -noautorotate \
   -i "$src" \
   -map 0:v:0 \

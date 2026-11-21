@@ -238,7 +238,7 @@ Image configs have names independent of video codecs and GPUs:
 
 | Image config | Behavior |
 | --- | --- |
-| `standard/lossless` | Reversible JPEG-to-JXL; supported SDR raster images use pixel-lossless JXL; detected HDR and other formats retain originals |
+| `standard/lossless` | Reversible SDR JPEG-to-JXL; pixel-lossless SDR raster images; supported Ultra HDR JPEGs become native HDR JXL |
 | `standard/lossless-caesium` | Caesium lossless optimization, retaining source formats |
 | `standard/balanced-jxl` | JPEG-to-JXL at distance 1; supported non-JPEG images use lossless JXL |
 | `standard/balanced-caesium` | JPEG quality 85; PNG/WebP lossless optimization |
@@ -253,6 +253,13 @@ Standard video choices are `standard/av1-crf28`, `standard/hevc-nvidia-ffmpeg`,
 `standard/hevc-vaapi`, `standard/handbrake` (the legacy imported preset),
 and `standard/passthrough-videos`. Perceptual video choices are
 `perceptual/av1` and `perceptual/hevc`.
+
+`standard/av1-crf28` scans frame metadata before encoding and again after
+metadata restoration to validate HDR preservation. During each scan it logs
+elapsed time every five seconds. Encoding logs report percentage (when duration
+is known), media time, frames, speed, and output size every five seconds. This
+profile uses CPU SVT-AV1 and the Video CRF setting; NVIDIA and Video Score do not
+affect it.
 
 Standard choices work in the `:latest` image. Perceptual choices require the
 `:perceptual` image. The dashboard disables quality controls unused by the
@@ -283,22 +290,33 @@ CPU-heavy, but it searches for an AV1 encode that meets a perceptual quality
 target instead of applying one fixed quality number to every file.
 
 JPEG XL supports both lossless and lossy compression. `perceptual/jxl` uses
-lossy encoding and the Image Score controls its quality/size tradeoff. For
-lossless images, select `standard/lossless` instead. It uses
-`cjxl --lossless_jpeg=1` for JPEG and verifies byte-for-byte JPEG reconstruction;
+lossy encoding and Image Score for SDR photos. `standard/lossless` uses
+`cjxl --lossless_jpeg=1` for SDR JPEG and verifies byte-for-byte reconstruction;
 supported SDR non-JPEG images use `-d 0`. It does not use the perceptual score.
-Detected HDR images retain their originals, preserving HDR without lossy AVIF
-conversion. Floating-point EXR/PFM and other unsupported formats also pass
-through. Pixel-lossless JXL encoding uses `-d 0` (equivalently `-q 100`). Lossless JPEG reconstruction
-alone does not guarantee that viewers render an embedded HDR gain map.
+Floating-point EXR/PFM and other unsupported source formats pass through.
 
-`perceptual/jxl` detects HDR-specific gain-map, headroom, and PQ/HLG metadata
-before encoding. HDR sources use the sibling `perceptual/avif` script: supported
-Ultra HDR JPEGs become AVIF with a validated lossless gain map, and unsupported
-HDR sources retain their original format. SDR sources continue to become JXL.
-This preserves HDR rather than flattening a gain-map JPEG to SDR; it does not
-produce native HDR JXL. The two profile folders must remain siblings in custom
-installations. The normal image savings threshold still applies.
+Both JXL configs detect HDR-specific gain-map, headroom, and PQ/HLG metadata.
+Supported Ultra HDR JPEGs use libvips `uhdr2scRGB` to reconstruct full HDR, then
+encode native JXL at distance `0`, effort `9`. HDR encoding is lossless for the
+reconstructed float pixels; it does not preserve the original JPEG bitstream,
+separate gain map, or original SDR tone mapping. Image Score is unused for
+this HDR route, including in `perceptual/jxl`. Other detected HDR formats
+retain their originals.
+
+The native helper normalizes display orientation and copies capture metadata
+without copying the source SDR ICC profile or obsolete gain-map XMP. After
+metadata restoration, an independent libjxl decoder verifies dimensions,
+32-bit float samples, linear-sRGB/D65 color signalling, and exact equality
+with the reconstructed HDR pixels. Conversion or validation failure uploads
+the original. The usual 15% image savings threshold still applies; lossless
+float HDR JXL can be larger than the original JPEG.
+
+The Debian standard, perceptual, and GoReleaser images build pinned libvips
+`8.18.0` and libultrahdr `1.4.0` under `/opt/iuo-hdr`, with a real Ultra HDR
+fixture check during the build. Rebuild the container to enable this route.
+The optional Alpine custom image and installations without the native helper
+retain HDR originals. SDR processing continues to use the existing tools.
+Native HDR JXL rendering still depends on the client and display.
 
 The standard `av1-crf28` video config performs one SVT-AV1 encode at preset
 `6`, without VMAF sampling. Its CRF comes from the dashboard's per-profile

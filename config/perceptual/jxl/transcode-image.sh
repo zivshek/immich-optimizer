@@ -3,8 +3,8 @@ set -eu
 
 src=$1
 dst=$2
-# cjxl's JPEG pixel decode does not apply Ultra HDR gain maps. Route HDR
-# through the validated AVIF encoder instead of silently producing SDR JXL.
+# cjxl's JPEG pixel decode does not apply Ultra HDR gain maps. Reconstruct
+# supported Ultra HDR JPEGs with libvips before encoding native HDR JXL.
 metadata=$(exiftool -j -G1 -s -api ExtractEmbedded=1 "$src")
 printf '%s' "$metadata" | jq -e 'length == 1 and (.[0] | has("ExifTool:Error") | not)' >/dev/null
 # Match HDR-specific evidence only; C2PA, depth auxiliaries, HEIF and high bit
@@ -18,9 +18,15 @@ hdr_reasons=$(printf '%s' "$metadata" | jq -r '.[0] | to_entries | map(select(
 )) | map(.key) | join(",")')
 if [ -n "$hdr_reasons" ]; then
   printf '[jxl] HDR detection matched tags: %s\n' "$hdr_reasons"
-  echo '[jxl] route=hdr-avif; preserving HDR through validated AVIF conversion or original-file passthrough; no JXL quality search'
-  script_dir=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
-  exec sh "$script_dir/../avif/transcode-image.sh" "$src" "${dst%.*}.avif"
+  file_type=$(printf '%s' "$metadata" | jq -r '.[0]["File:FileType"] // ""')
+  hdr_tools=${IUO_HDR_TOOLS_DIR:-/opt/iuo-hdr/bin}
+  if [ "$file_type" = JPEG ] && [ -x "$hdr_tools/iuo-hdr-jxl" ]; then
+    echo '[jxl] route=native-HDR-JXL; using lossless reconstructed HDR pixels; image score unused'
+    exec sh "$hdr_tools/iuo-hdr-jxl" "$src" "$dst"
+  fi
+  echo '[jxl] result=passthrough; retaining original to preserve HDR; native HDR conversion unavailable for this source'
+  cp "$src" "$(dirname "$dst")/$(basename "$src")"
+  exit 0
 fi
 echo '[jxl] route=sdr; optimizing with perceptual JXL'
 workdir=$(dirname "$dst")

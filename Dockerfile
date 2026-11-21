@@ -40,6 +40,16 @@ RUN set -eux; \
     install -m 755 "/tmp/${CAESIUM_ARCHIVE}/caesiumclt" /out/caesiumclt; \
     /out/caesiumclt --version
 
+FROM debian:trixie-slim AS hdr-vips-libraries
+
+COPY scripts/build-hdr-tools.sh /build/build-hdr-tools.sh
+RUN sh /build/build-hdr-tools.sh
+
+FROM hdr-vips-libraries AS hdr-vips-builder
+
+COPY scripts/finish-hdr-tools.sh scripts/hdr-jxl-codec.cpp scripts/transcode-hdr-jxl.sh scripts/smoke-test-hdr-jxl.sh /build/
+RUN sh /build/finish-hdr-tools.sh
+
 FROM debian:trixie-slim
 
 RUN groupadd -r appuser && \
@@ -70,11 +80,17 @@ RUN groupadd -r appuser && \
     mkdir -p /etc/immich-optimizer/config /etc/immich-optimizer/bundled-configs/standard /custom_profiles /watch /undone /data && \
     chown -R appuser:appuser /etc/immich-optimizer /custom_profiles /watch /undone /data
 
+COPY --from=hdr-vips-builder /opt/iuo-hdr /opt/iuo-hdr
 COPY --from=app-builder /out/immich-optimizer /usr/local/bin/immich-optimizer
 COPY --from=caesium-builder /out/caesiumclt /usr/local/bin/caesiumclt
 RUN ffmpeg -hide_banner -encoders | grep libsvtav1
 COPY --chown=appuser:appuser config/standard/lossless /etc/immich-optimizer/config
 COPY --chown=appuser:appuser config/standard /etc/immich-optimizer/bundled-configs/standard
+
+COPY --from=hdr-vips-builder /tmp/hdr-jxl-smoke.jpg /tmp/hdr-jxl-smoke.jpg
+COPY scripts/smoke-test-hdr-jxl.sh /tmp/smoke-test-hdr-jxl.sh
+RUN sh /tmp/smoke-test-hdr-jxl.sh /tmp/hdr-jxl-smoke.jpg && \
+    rm /tmp/smoke-test-hdr-jxl.sh /tmp/hdr-jxl-smoke.jpg
 
 LABEL org.opencontainers.image.title="Immich Optimizer" \
       org.opencontainers.image.description="File optimization service for Immich" \

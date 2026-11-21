@@ -9,6 +9,7 @@ mkdir -p "$testdir/bin" "$testdir/src" "$testdir/dst"
 export TEST_LOG="$testdir/calls" TEST_METADATA="$testdir/metadata"
 export TEST_SOURCE="$testdir/src/photo with spaces.jpg"
 export PATH="$testdir/bin:$PATH"
+export IUO_HDR_TOOLS_DIR="$testdir/missing-tools"
 cat > "$testdir/bin/exiftool" <<'EOF'
 #!/bin/sh
 case "$*" in

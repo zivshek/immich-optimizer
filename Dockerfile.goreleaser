@@ -28,6 +28,16 @@ RUN set -eux; \
     caesiumclt --version
 
 # Runtime stage
+FROM debian:trixie-slim AS hdr-vips-libraries
+
+COPY scripts/build-hdr-tools.sh /build/build-hdr-tools.sh
+RUN sh /build/build-hdr-tools.sh
+
+FROM hdr-vips-libraries AS hdr-vips-builder
+
+COPY scripts/finish-hdr-tools.sh scripts/hdr-jxl-codec.cpp scripts/transcode-hdr-jxl.sh scripts/smoke-test-hdr-jxl.sh /build/
+RUN sh /build/finish-hdr-tools.sh
+
 FROM debian:trixie-slim
 
 # Create non-root user for security
@@ -60,6 +70,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy caesium-clt from builder
+COPY --from=hdr-vips-builder /opt/iuo-hdr /opt/iuo-hdr
 COPY --from=builder /usr/local/bin/caesiumclt /usr/local/bin/caesiumclt
 
 # Create directories with proper permissions
@@ -79,6 +90,11 @@ COPY --chown=appuser:appuser immich-optimizer /usr/local/bin/
 RUN chmod +x /usr/local/bin/immich-optimizer
 
 # Add metadata labels
+COPY --from=hdr-vips-builder /tmp/hdr-jxl-smoke.jpg /tmp/hdr-jxl-smoke.jpg
+COPY scripts/smoke-test-hdr-jxl.sh /tmp/smoke-test-hdr-jxl.sh
+RUN sh /tmp/smoke-test-hdr-jxl.sh /tmp/hdr-jxl-smoke.jpg && \
+    rm /tmp/smoke-test-hdr-jxl.sh /tmp/hdr-jxl-smoke.jpg
+
 LABEL \
     org.opencontainers.image.title="Immich Optimizer" \
     org.opencontainers.image.description="File optimization service for Immich" \

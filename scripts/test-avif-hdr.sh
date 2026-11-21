@@ -9,6 +9,7 @@ trap 'rm -rf "$testdir"' EXIT
 mkdir -p "$testdir/bin" "$testdir/src" "$testdir/dst"
 export TEST_LOG="$testdir/calls"
 export PATH="$testdir/bin:$PATH"
+export IUO_HDR_TOOLS_DIR="$testdir/missing-tools"
 cat > "$testdir/bin/exiftool" <<'EOF'
 #!/bin/sh
 case "$*" in
@@ -97,6 +98,16 @@ for TEST_CASE in hdr hdr-jumbf missing broken rewrite scorefail heif heif-aux pq
   status=0
   sh "$repo/config/perceptual/$profile/transcode-image.sh" \
     "$testdir/src/photo.jpg" "$testdir/dst/photo.$profile" > "$testdir/output" 2>&1 || status=$?
+  if [ "$profile" = jxl ]; then
+    case "$TEST_CASE" in hdr|hdr-jumbf|missing|broken|rewrite|scorefail|heif|heif-aux|pq|hlg)
+      [ "$status" = 0 ]
+      cmp "$testdir/src/photo.jpg" "$testdir/dst/photo.jpg"
+      [ ! -e "$testdir/dst/photo.jxl" ]
+      [ ! -s "$TEST_LOG" ]
+      echo "PASS: $profile $TEST_CASE (HDR tools unavailable; original retained)"
+      continue ;;
+    esac
+  fi
   case "$TEST_CASE" in
     hdr|hdr-jumbf)
       [ "$status" = 0 ]

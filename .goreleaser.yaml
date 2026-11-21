@@ -33,6 +33,7 @@ dockers:
   - "--label=org.opencontainers.image.source=https://github.com/zivshek/{{ .ProjectName }}"
   extra_files:
   - config
+  - scripts
   - LICENSE
 
 - goos: linux
@@ -52,6 +53,7 @@ dockers:
   - "--label=org.opencontainers.image.source=https://github.com/zivshek/{{ .ProjectName }}"
   extra_files:
   - config
+  - scripts
   - LICENSE
 docker_manifests:
 

@@ -8,8 +8,8 @@ trap '[ -z "$reconstructed" ] || rm -f "$reconstructed"' EXIT
 
 metadata=$(exiftool -j -G1 -s -api ExtractEmbedded=1 "$src")
 printf '%s' "$metadata" | jq -e 'length == 1 and (.[0] | has("ExifTool:Error") | not)' >/dev/null
-# Preserve gain-map and native PQ/HLG sources as originals. A reversible JPEG
-# bitstream inside JXL does not guarantee displayable HDR in JXL viewers.
+# Reconstruct supported Ultra HDR JPEGs as native HDR JXL. Other HDR formats
+# retain their originals; reversible JPEG recompression alone is insufficient.
 # C2PA, depth auxiliaries and high bit depth alone do not identify HDR.
 hdr_reasons=$(printf '%s' "$metadata" | jq -r '.[0] | to_entries | map(select(
   (.key | test("GainMap|HDRCapacity|XMP-hdrgm:|HDRHeadroom"; "i")) or
@@ -19,6 +19,12 @@ hdr_reasons=$(printf '%s' "$metadata" | jq -r '.[0] | to_entries | map(select(
     (.value | tostring | test("PQ|HLG|2084|B67|^(16|18)$"; "i")))
 )) | map(.key) | join(",")')
 if [ -n "$hdr_reasons" ]; then
+  file_type=$(printf '%s' "$metadata" | jq -r '.[0]["File:FileType"] // ""')
+  hdr_tools=${IUO_HDR_TOOLS_DIR:-/opt/iuo-hdr/bin}
+  if [ "$file_type" = JPEG ] && [ -x "$hdr_tools/iuo-hdr-jxl" ]; then
+    printf '[lossless] route=native-HDR-JXL tags=%s\n' "$hdr_reasons"
+    exec sh "$hdr_tools/iuo-hdr-jxl" "$src" "$dst"
+  fi
   printf '[lossless] result=passthrough reason=HDR tags=%s; retaining original to preserve HDR\n' "$hdr_reasons"
   cp "$src" "$(dirname "$dst")/$(basename "$src")"
   exit 0
